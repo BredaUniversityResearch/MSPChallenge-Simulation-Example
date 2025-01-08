@@ -1,0 +1,14 @@
+@MSPChallenge_Simulation_Example_HostAddress = http://localhost:5026
+# http://mitmproxy:8080/1/api/
+@MSP_Server_Address_UrlEncoded = http%3A%2F%2Fmitmproxy%3A8080%2F1%2Fapi%2F
+@TargetMonth = 3
+
+POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/UpdateState
+Accept: application/json
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Content-Type: application/x-www-form-urlencoded
+
+game_session_api={{MSP_Server_Address_UrlEncoded}}&game_state=Pause&required_simulations=mel&api_access_token=%7B%0A%20%20%20%20%20%20%20%20%22token%22%3A%20%22exampleToken123%22%2C%0A%20%20%20%20%20%20%20%20%22valid_until%22%3A%20%222025-12-31%2023%3A59%3A59%22%0A%7D&api_access_renew_token=%7B%0A%20%20%20%20%20%20%20%20%22token%22%3A%20%22exampleToken123%22%2C%0A%20%20%20%20%20%20%20%20%22valid_until%22%3A%20%222025-12-31%2023%3A59%3A59%22%0A%7D&month={{TargetMonth}}&game_session_token=dummy
+
+###

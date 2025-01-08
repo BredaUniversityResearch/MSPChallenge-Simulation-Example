@@ -1,0 +1,14 @@
+@MSPChallenge_Simulation_Example_HostAddress = http://localhost:5026
+# http://mitmproxy:8080/1/api/
+@MSP_Server_Address_UrlEncoded = http%3A%2F%2Fmitmproxy%3A8080%2F1%2Fapi%2F
+@TargetMonth = 4
+
+POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/SetMonth
+Accept: application/json
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Content-Type: application/x-www-form-urlencoded
+
+month={{TargetMonth}}&game_session_token=dummy
+
+###

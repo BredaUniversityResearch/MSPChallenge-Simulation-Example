@@ -1,0 +1,10 @@
+# Build results
+bin/
+obj/
+
+# Rider project files
+.idea/
+*.DotSettings.user
+
+# any DOT file 
+*.dot
