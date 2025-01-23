@@ -18,4 +18,11 @@
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include=".http\1.Watchdog-UpdateState-Setup.http" />
+    <None Include=".http\2.Watchdog-UpdateState-Simulate.http" />
+    <None Include=".http\3.Watchdog-SetMonth.http" />
+    <None Include=".http\4.Watchdog-UpdateState-End.http" />
+  </ItemGroup>
+
 </Project>
