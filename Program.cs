@@ -97,7 +97,6 @@ Task Setup()
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
-// User is responsible for invoking the onSimulationFinished action once simulation has finished.
 Task OnSimulationStateEnteredEvent(
     int month,
     LayerMeta eezLayer,
