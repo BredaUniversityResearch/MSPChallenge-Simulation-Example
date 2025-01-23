@@ -253,7 +253,7 @@ public class ProgramManager()
         app.MapPost("/Watchdog/SetMonth", ([FromBody] SetMonthRequest request) =>
         {
             try {
-                ValidateRequest(request.game_session_token);
+                ValidateRequestAllowed(request.game_session_token);
             } catch (Exception e) {
                 return Results.Json(
                     new { success = "0", message = e.Message },
@@ -272,33 +272,26 @@ public class ProgramManager()
             var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_token);
             var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_renew_token);
             var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string,string>>(request.required_simulations);
-            if (apiAccessToken == null || apiAccessRenewToken == null)
+
+            EGameState newGameState;
+            try
             {
-                return Results.BadRequest(new { success = "0", message = "Invalid JSON format for API tokens" });
-            }
-            if (!Enum.TryParse(request.game_state, true, out EGameState newGameState))
-            {
-                return Results.BadRequest(new { success = "0", message = "Invalid game state" });
-            }
-            if (newGameState == EGameState.Setup)
-            {
-                if (request.game_session_info == null)
-                {
-                    return Results.BadRequest(new { success = "0", message = "Missing setup game session info" });
-                }
-                // yes, we accepted this setup, and from now on we will only accept messages having this game session token
-                m_setupAccepted = IsSetupAccepted(request.game_session_info);
-                m_gameSessionToken = request.game_session_token;
-            }
-            try {
-                ValidateRequest(request.game_session_token, requiredSimulations);
+                ValidateRequestData(apiAccessToken, apiAccessRenewToken, request, out newGameState);
             } catch (Exception e) {
+                Console.WriteLine(e.Message);
+                return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });  
+            }
+
+            try {
+                ValidateRequestAllowed(request.game_session_token, requiredSimulations);
+            } catch (Exception e) {
+                Console.WriteLine(e.Message);
                 return Results.Json(
-                    new { success = "0", message = e.Message },
+                    new { success = "0", message = "Request not allowed: " + e.Message },
                     statusCode: StatusCodes.Status405MethodNotAllowed
                 );    
             }
-            Init(serverId, request.game_session_api, apiAccessToken, apiAccessRenewToken); // this kicks in the game state machine
+            Init(serverId, request.game_session_api, apiAccessToken!, apiAccessRenewToken!); // this kicks in the game state machine
             m_targetMonth = request.month;
             Console.WriteLine($"Setting target month to {m_targetMonth}");
             m_targetGameState = newGameState;
@@ -318,11 +311,34 @@ public class ProgramManager()
         app.Run();
     }
 
-    private void ValidateRequest(string gameSessionToken, Dictionary<string,string>? requiredSimulations = null)
+    private void ValidateRequestData(ApiToken? apiAccessToken, ApiToken? apiAccessRenewToken, UpdateStateRequest request,
+        out EGameState newGameState)
+    {
+        if (apiAccessToken == null || apiAccessRenewToken == null)
+        {
+            throw new Exception("Invalid JSON format for API tokens");
+        }
+        if (!Enum.TryParse(request.game_state, true, out newGameState))
+        {
+            throw new Exception("Invalid game state: " + request.game_state);
+        }
+
+        if (newGameState != EGameState.Setup) return;
+        
+        if (request.game_session_info == null)
+        {
+            throw new Exception("Missing setup game session info");
+        }
+        // yes, we accepted this setup, and from now on we will only accept messages having this game session token
+        m_setupAccepted = IsSetupAccepted(request.game_session_info);
+        m_gameSessionToken = request.game_session_token;
+    }
+
+    private void ValidateRequestAllowed(string gameSessionToken, Dictionary<string,string>? requiredSimulations = null)
     {
         if (!m_setupAccepted)
         {
-            throw new Exception("Request method not allowed");
+            throw new Exception("Please start the setup first.");
         }
         if (m_gameSessionToken != gameSessionToken)
         {
