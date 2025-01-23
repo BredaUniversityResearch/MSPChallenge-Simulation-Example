@@ -1,12 +1,10 @@
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace MSPChallenge_Simulation_Example.Api;
 
 public class ApiToken
 {
-    [JsonProperty("token")]
-    public string Token { get; set; }
-
-    [JsonProperty("valid_until")]
-    public DateTime ValidUntil { get; set; }
+    public string token { get; set; }
+    [JsonConverter(typeof(Newtonsoft.Json.Converters.IsoDateTimeConverter))]
+    public DateTime valid_until { get; set; }
 }

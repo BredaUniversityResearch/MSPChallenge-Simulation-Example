@@ -1,74 +1,129 @@
 using System.Collections.Specialized;
 using MSPChallenge_Simulation_Example;
+using MSPChallenge_Simulation_Example.Api;
 using MSPChallenge_Simulation_Example.Communication.DataModel;
-using Newtonsoft.Json;
+using MSPChallenge_Simulation_Example.Extensions;
+using MSPChallenge_Simulation_Example.Simulation;
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 using SunCalcNet;
 using SunCalcNet.Model;
 
+// note that this program is designed to only handle one game session at a time
+//   any new game session will be ignored until the current game session is finished
 var program = new ProgramManager(args);
 var kpis = new List<KPI>();
 
+program.OnSimulationDefinitionsEvent += OnSimulationDefinitionsEvent;
+program.OnQuestionAcceptSetupEvent += OnQuestionAcceptSetupEvent;
 program.OnSetupEvent += Setup;
-program.OnReportStateEnteredEvent += OnReportStateEnteredEvent;
+program.OnReportStateEnteredEvent += () => Task.FromResult(kpis);
 program.Run();
 return;
 
-// Once connected to the server, start setup.
-//   This will register the OnSimulationStateEnteredEvent event with the necessary data, if found.
-//   User is responsible for invoking the onSetupFinished action once setup is finished.
-void Setup(Action onSetupFinished)
+List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSessionInfo)
 {
-    program.GetMspClient().SetDefaultHttpPostErrorHandler(exception => {
-        Console.WriteLine("Error: " + exception.Message);
-    });
+    // here you can decide based on the game session info data what simulations you want to run
+    // e.g. a watchdog could have multiple simulations, but you only want to run some of them
+    return [new SimulationDefinition("SunHours", "1.0.0")];
+}
+
+bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
+{
+    // here you can decide based on the game session info data if you want to accept this game session or not
+    return "North_Sea_basic" == gameSessionInfo.config_file_name; // the only one with layer tags
+}
+
+// Once connected to the server, start setup.
+//   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
+Task Setup()
+{
+    program.GetMspClient().SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
     var values = new NameValueCollection
     {
         { "layer_tags", "EEZ,Polygon" }
-    };    
-    program.GetMspClient().HttpPost("/Layer/List", values,
-        onSuccess: (List<LayerMeta> layers) =>
-        {
-            if (layers.Count == 0)
+    };
+    return program.GetMspClient().HttpPost<List<LayerMeta>>(
+        "/api/Layer/List", values
+    ).ContinueWithOnSuccess(layerListTask =>
+    {
+        var layers = layerListTask.Result;
+        if (layers.Count == 0)
+            throw new Exception($"Could not find layer with tags: {values["layer_tags"]}.");
+        var layer = layerListTask.Result[0];
+        Console.WriteLine(
+            $"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
+        return (layer, program.GetMspClient().HttpPost<LayerMeta>(
+            "/api/Layer/Meta",
+            new NameValueCollection
             {
-                Console.WriteLine($"Could not find layer with tags: {values["layer_tags"]}.");
-                return;
-            }
-            OnEezLayerFound(layers[0], onSetupFinished);
-        });
+                { "layer_id", layer.layer_id.ToString() }
+            }));
+    }).ContinueWithOnSuccess(dataset =>
+    {
+        var (layer, layerMetaTask) = dataset.Result;
+        var layerWithMeta = layerMetaTask.Result;
+        if (layerWithMeta.layer_id == 0)
+        {
+            throw new Exception($"Could not find layer data for layer id {layer.layer_id}.");
+        }
+        Console.WriteLine(
+            $"Retrieved additional data for Layer with id {layer.layer_id} having {layer.layer_type.Count} layer types.");
+        return (layerWithMeta, program.GetMspClient().HttpPost<List<SubEntityObject>>(
+            "/api/Layer/Get",
+            new NameValueCollection
+            {
+                { "layer_id", layer.layer_id.ToString() }
+            }));
+    }).ContinueWithOnSuccess(dataset =>
+    {
+        var (layer, layerGetTask) = dataset.Result;
+        var layerObjects = layerGetTask.Result;
+        if (layerObjects.Count == 0)
+        {
+            throw new Exception($"Could not find any layer geometry objects for layer with id {layer.layer_id}");
+        }
+
+        Console.WriteLine(
+            $"Retrieved geometry for layer with id {layer.layer_id} having {layerObjects.Count} layer objects.");
+        foreach (var layerObject in layerObjects)
+        {
+            Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
+        }
+
+        program.OnSimulationStateEnteredEvent += (month) =>
+            OnSimulationStateEnteredEvent(month, layer, layerObjects);
+    });
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
 // User is responsible for invoking the onSimulationFinished action once simulation has finished.
-void OnSimulationStateEnteredEvent(
+Task OnSimulationStateEnteredEvent(
     int month,
     LayerMeta eezLayer,
-    List<SubEntityObject> eezLayerObjects,
-    Action onSimulationFinished
+    List<SubEntityObject> eezLayerObjects
 ) {
-    var values = new NameValueCollection
-    {
-        { "simulated_month", month.ToString() }
-    };
-    program.GetMspClient().HttpPost("/Game/GetActualDateForSimulatedMonth", values, 
-        onSuccess: (YearMonthObject yearMonthObject) =>
+    return program.GetMspClient().HttpPost<YearMonthObject>(
+    "/api/Game/GetActualDateForSimulatedMonth",
+        new NameValueCollection
         {
-            if (yearMonthObject.year == 0)
-            {
-                Console.WriteLine($"Could not find actual date for simulated month {month}.");
-                return;
-            }
-            CalculateKpis(month, yearMonthObject, eezLayer, eezLayerObjects, onSimulationFinished);
-        });
+            { "simulated_month", month.ToString() }
+        }
+    ).ContinueWithOnSuccess(task => {
+        var yearMonthObject = task.Result;
+        if (yearMonthObject.year == 0)
+        {
+            throw new Exception($"Could not find actual date for simulated month {month}.");
+        }
+        CalculateKpis(month, yearMonthObject, eezLayer, eezLayerObjects);
+    });
 }
 
 void CalculateKpis(
     int simulatedMonthIdentifier,
     YearMonthObject yearMonthObject,
     LayerMeta eezLayer,
-    List<SubEntityObject> eezLayerObjects,
-    Action onSimulationFinished
+    List<SubEntityObject> eezLayerObjects
 ) {
     kpis.Clear();
     foreach (var layerType in eezLayer.layer_type)
@@ -121,7 +176,6 @@ void CalculateKpis(
         Console.WriteLine($"KPI: {kpi.name} {layerType.Value.displayName}, Value: {kpi.value} {kpi.unit}");
         kpis.Add(kpi);
     }
-    onSimulationFinished.Invoke();
 }
 
 double[] ConvertToLatLong(double[] coordinate)
@@ -131,70 +185,4 @@ double[] ConvertToLatLong(double[] coordinate)
     var coordinateTransformationFactory = new CoordinateTransformationFactory();
     var transformation = coordinateTransformationFactory.CreateFromCoordinateSystems(epsg3035, epsg4326);
     return transformation.MathTransform.Transform(coordinate);
-}
-
-// User is responsible for invoking the onReportFinished action once simulation has finished.
-void OnReportStateEnteredEvent(Action onReportFinished)
-{
-    if (kpis.Count == 0) return;
-    var values = new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(kpis) } };
-    program.GetMspClient().HttpPost("/kpi/BatchPost", values,
-        onSuccess: () =>
-        {
-            Console.WriteLine("KPI's submitted successfully.");
-            onReportFinished.Invoke();
-        }
-    );
-}
-
-void OnEezLayerFound(LayerMeta layer, Action onSetupFinished)
-{
-    Console.WriteLine($"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
-    var values = new NameValueCollection
-    {
-        { "layer_id", layer.layer_id.ToString() }
-    };    
-    program.GetMspClient().HttpPost("/Layer/Meta", values,
-        onSuccess: (LayerMeta layerWithMeta) =>
-        {
-            if (layerWithMeta.layer_id == 0)
-            {
-                Console.WriteLine($"Could not find layer data for layer id {layer.layer_id}.");
-                return;
-            }
-            OnLayerMetaSuccess(layerWithMeta, onSetupFinished);
-        });
-}
-
-void OnLayerMetaSuccess(LayerMeta layer, Action onSetupFinished)
-{
-    Console.WriteLine($"Retrieved additional data for Layer with id {layer.layer_id} having {layer.layer_type.Count} layer types.");
-    var values = new NameValueCollection
-    {
-        { "layer_id", layer.layer_id.ToString() }
-    };    
-    program.GetMspClient().HttpPost("/Layer/Get", values,
-        onSuccess: (List<SubEntityObject> layerObjects) =>
-        {
-            if (layerObjects.Count == 0)
-            {
-                Console.WriteLine($"Could not find any layer geometry objects for layer with id {layer.layer_id}");
-                return;
-            }
-            OnLayerGetSuccess(layer, layerObjects, onSetupFinished);
-        });
-}
-
-void OnLayerGetSuccess(LayerMeta layer, List<SubEntityObject> layerObjects, Action onSetupFinished)
-{
-    Console.WriteLine($"Retrieved geometry for layer with id {layer.layer_id} having {layerObjects.Count} layer objects.");
-    foreach (var layerObject in layerObjects)
-    {
-        Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
-    }
-    program.OnSimulationStateEnteredEvent += (month, onSimulationFinished) =>
-    {
-        OnSimulationStateEnteredEvent(month, layer, layerObjects, onSimulationFinished);
-    };
-    onSetupFinished.Invoke();
 }

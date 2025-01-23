@@ -19,21 +19,16 @@ build_timestamp=&user_name={{Username}}&country_password=test&country_id=1
 ###
 
 @MSPChallenge_Simulation_Example_HostAddress = http://localhost:5026
-@TargetMonth = 3
+@TargetMonth = 4
 @GameSessionToken = 101207526825000961
 
-POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/UpdateState
+POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/SetMonth
 Accept: application/json
 Accept-Encoding: gzip, deflate, br
 Connection: keep-alive
 Content-Type: application/json
 
 {
-  "game_session_api": "{{MSP_Server_Address}}",
-  "game_state": "Pause",
-  "required_simulations": "{\"SunHours\":\"1.0.0\"}",
-  "api_access_token": "{\"token\":\"{{ApiAccessToken}}\",\"valid_until\":\"2025-12-31T23:59:59\"}",
-  "api_access_renew_token": "{\"token\":\"{{ApiAccessRenewToken}}\",\"valid_until\":\"2025-12-31T23:59:59\"}",
   "month": {{TargetMonth}},
   "game_session_token": "{{GameSessionToken}}"
 }

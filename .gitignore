@@ -8,3 +8,5 @@ obj/
 
 # any DOT file 
 *.dot
+
+.env.local

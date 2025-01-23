@@ -3,12 +3,13 @@ using System.Net.Http.Headers;
 using MSPChallenge_Simulation_Example.Api;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using JsonSerializer = System.Text.Json.JsonSerializer;
+using MSPChallenge_Simulation_Example.Extensions;
 
 namespace MSPChallenge_Simulation_Example.Communication;
 
 public class MspClient
 {
+    private readonly string m_serverId;
     private readonly HttpClient m_client;
     private Action<Exception>? m_defaultErrorHandler;
 
@@ -22,67 +23,66 @@ public class MspClient
         public JToken payload = null;
     }
 
-    public MspClient(string apiBaseUrl, ApiToken apiAccessToken, ApiToken apiRefreshToken)
+    public MspClient(string serverId, string apiBaseUrl, ApiToken apiAccessToken, ApiToken apiRefreshToken)
     {
         // todo: implement token refresh
+        m_serverId = serverId;
         m_client = new HttpClient
         {
             BaseAddress = new Uri(apiBaseUrl)
         };
-        m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiAccessToken.Token);
+        m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiAccessToken.token);
     }
     
-    public void SetDefaultHttpPostErrorHandler(Action<Exception>? onError)
+    public void SetDefaultErrorHandler(Action<Exception>? onError)
     {
         m_defaultErrorHandler = onError;
     }
     
-    public void HttpPost(string uri, NameValueCollection postValues,
-        Action? onSuccess = null,
-        Action<Exception>? onError = null)
+    public Task HttpPost(string uri, NameValueCollection postValues)
     {
-        HttpPostInternal(uri, postValues, (ApiResponseWrapper wrapper) =>
+        return HttpPostInternal(uri, postValues).ContinueWithOnSuccess(wrapperTask =>
         {
-            if (wrapper.success)
-            {
-                onSuccess?.Invoke();
-            }
-            else
-            {
-                onError?.Invoke(new Exception(wrapper.message ?? "Unknown error"));
-            }
-        }, onError);
+            var wrapper = wrapperTask.Result;
+            if (wrapper.success) return;
+            var exception = new Exception(string.IsNullOrEmpty(wrapper.message) ? "Unknown error" : wrapper.message);
+            m_defaultErrorHandler?.Invoke(exception);
+            throw exception;
+        });
     }    
 
-    public void HttpPost<TTargetType>(string uri, NameValueCollection postValues,
-        Action<TTargetType>? onSuccess = null,
-        Action<Exception>? onError = null)
+    public Task<TTargetType> HttpPost<TTargetType>(string uri, NameValueCollection postValues)
     {
-        HttpPostInternal(uri, postValues, (ApiResponseWrapper wrapper) =>
+        return HttpPostInternal(uri, postValues).ContinueWithOnSuccess(wrapperTask =>
         {
+            var wrapper = wrapperTask.Result;
             var result = wrapper.payload.ToObject<TTargetType>();
-            if (result == null)
-            {
-                throw new Exception($"Post request for {uri} failed: JSON Decode Failed");
+            try {
+                if (result == null) throw new Exception($"Post request for {uri} failed: JSON Decode Failed");
+                if (!wrapper.success)
+                    throw new Exception(string.IsNullOrEmpty(wrapper.message) ? "Unknown error" : wrapper.message);
+            } catch (Exception e) {
+                m_defaultErrorHandler?.Invoke(e);
+                throw;
             }
-            if (wrapper.success)
-            {
-                onSuccess?.Invoke(result);
-            }
-            else
-            {
-                onError?.Invoke(new Exception(wrapper.message ?? "Unknown error"));
-            }
-        }, onError);
+            return result;
+        });
     }
 
-    private void HttpPostInternal(
+    private Task<ApiResponseWrapper> HttpPostInternal(
         string uri,
-        NameValueCollection postValues,
-        Action<ApiResponseWrapper>? onSuccess = null,
-        Action<Exception>? onError = null
+        NameValueCollection postValues
     )  {
-        onError ??= m_defaultErrorHandler;
+        var xdebugTrigger = Environment.GetEnvironmentVariable("XDEBUG_TRIGGER"); // boolean
+        if (!string.IsNullOrEmpty(xdebugTrigger))
+        {        
+            postValues.Add("XDEBUG_TRIGGER", xdebugTrigger);
+        }
+        var xdebugServername = Environment.GetEnvironmentVariable("XDEBUG_SERVER_NAME");
+        if (!string.IsNullOrEmpty(xdebugTrigger))
+        {        
+            postValues.Add("serverName", xdebugServername);
+        }
         var content = new FormUrlEncodedContent(postValues.AllKeys
             .Where(k => k != null)
             .ToDictionary(k => k!, k => postValues[k]!));
@@ -91,23 +91,29 @@ public class MspClient
         {
             Content = content
         };
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));        
-        m_client.SendAsync(request).ContinueWith((Task<HttpResponseMessage> postTask) =>
+        request.Headers.Add("X-Server-Id", m_serverId);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return m_client.SendAsync(request).ContinueWithOnSuccess(postTask => 
         {
-            if (postTask is { IsCompletedSuccessfully: false, Exception: not null })
+            if (postTask.IsFaulted)
             {
-                onError?.Invoke(postTask.Exception);
-                return;
-            }
+                m_defaultErrorHandler?.Invoke(postTask.Exception);
+                throw postTask.Exception;;
+            }            
             var response = postTask.Result;
-            response.Content.ReadAsStringAsync().ContinueWith((Task<string> readTask) =>
+            if (!response.IsSuccessStatusCode)
             {
-                if (readTask is { IsCompletedSuccessfully: false, Exception: not null })
+                var errorMessage = $"HTTP request failed with status code {response.StatusCode}";
+                m_defaultErrorHandler?.Invoke(new HttpRequestException(errorMessage));
+                throw new HttpRequestException(errorMessage);
+            }            
+            return response.Content.ReadAsStringAsync().ContinueWithOnSuccess(readTask =>
+            {
+                if (readTask.IsFaulted)
                 {
-                    onError?.Invoke(readTask.Exception);
-                    return;
+                    m_defaultErrorHandler?.Invoke(readTask.Exception);
+                    throw readTask.Exception;;
                 }
-
                 try
                 {
                     var wrapper = JsonConvert.DeserializeObject<ApiResponseWrapper>(readTask.Result);
@@ -116,13 +122,14 @@ public class MspClient
                         throw new Exception(
                             $"Post request for {uri} failed: {((wrapper != null) ? wrapper.message : "JSON Decode Failed")}");
                     }
-                    onSuccess?.Invoke(wrapper);
+                    return wrapper;
                 }
                 catch (Exception ex)
                 {
-                    onError?.Invoke(ex);
+                    m_defaultErrorHandler?.Invoke(ex);
+                    throw;
                 }
             });
-        });
+        }).Unwrap();
     }
 }

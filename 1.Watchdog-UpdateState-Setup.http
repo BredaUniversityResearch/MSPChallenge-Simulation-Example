@@ -1,13 +1,60 @@
-@MSPChallenge_Simulation_Example_HostAddress = http://localhost:5026
-# http://mitmproxy:8080/1/api/
-@MSP_Server_Address_UrlEncoded = http%3A%2F%2Fmitmproxy%3A8080%2F1%2Fapi%2F
+@env = dev
 
-POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/UpdateState
+@MSP_Server_Address = http://mitmproxy:8080/1/
+@Username = marin
+
+POST {{MSP_Server_Address}}/api/User/RequestSession
 Accept: application/json
 Accept-Encoding: gzip, deflate, br
 Connection: keep-alive
 Content-Type: application/x-www-form-urlencoded
 
-game_session_api={{MSP_Server_Address_UrlEncoded}}&game_state=Setup&required_simulations=mel&api_access_token=%7B%0A%20%20%20%20%20%20%20%20%22token%22%3A%20%22exampleToken123%22%2C%0A%20%20%20%20%20%20%20%20%22valid_until%22%3A%20%222025-12-31%2023%3A59%3A59%22%0A%7D&api_access_renew_token=%7B%0A%20%20%20%20%20%20%20%20%22token%22%3A%20%22exampleToken123%22%2C%0A%20%20%20%20%20%20%20%20%22valid_until%22%3A%20%222025-12-31%2023%3A59%3A59%22%0A%7D&month=-1&game_session_token=dummy
+build_timestamp=&user_name={{Username}}&country_password=test&country_id=1
+
+> {%
+    client.global.set("ApiAccessToken", response.body.payload.api_access_token);
+    client.global.set("ApiAccessRenewToken", response.body.payload.api_refresh_token);
+%}
 
 ###
+
+@MSPChallenge_Simulation_Example_HostAddress = http://localhost:5026
+@GameSessionToken = 101207526825000961
+
+POST {{MSPChallenge_Simulation_Example_HostAddress}}/Watchdog/UpdateState
+Accept: application/json
+Accept-Encoding: gzip, deflate, br
+Connection: keep-alive
+Content-Type: application/json
+
+{
+  "game_session_api": "{{MSP_Server_Address}}",
+  "game_state": "Setup",
+  "required_simulations": "{\"SunHours\":\"1.0.0\"}",
+  "api_access_token": "{\"token\":\"{{ApiAccessToken}}\",\"valid_until\":\"2025-12-31T23:59:59\"}",
+  "api_access_renew_token": "{\"token\":\"{{ApiAccessRenewToken}}\",\"valid_until\":\"2025-12-31T23:59:59\"}",
+  "month": -1,
+  "game_session_token": "{{GameSessionToken}}",
+  "game_session_info": {
+    "id": 1,
+    "name": "NS",
+    "region": "northsee",
+    "config_version": 1,
+    "config_version_message": "See www.mspchallenge.info",
+    "config_file_name": "North_Sea_basic",
+    "config_file_description": "North Sea basic configuration file supplied by BUas",
+    "config_file_metadata_date_modified": "10/10/2024",
+    "config_file_metadata_model_hash": "94EA09BD1ABF3CF73D6F50F65D50A93E48B86209BADD1067249C95E65C62ECCB",
+    "config_file_metadata_editor_version": "2.0.0",
+    "config_file_metadata_config_version": "2.0.0",
+    "server_version": "5.0.0",
+    "server_components_versions": {
+      "MSW": "2.0.0",
+      "MEL": "2.0.0",
+      "SEL": "2.0.0",
+      "CEL": "2.0.0",
+      "REL": "2.0.0"
+    }
+  }
+}
+

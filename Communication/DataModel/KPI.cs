@@ -3,7 +3,7 @@
 namespace MSPChallenge_Simulation_Example.Communication.DataModel;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-class KPI
+public class KPI
 {
 	public string name;		//Name of the KPI
 	public int month;		//Month this KPI applies to
