@@ -224,6 +224,7 @@ public class ProgramManager()
             Environment.SetEnvironmentVariable("SERVER_ID", serverId);
             File.AppendAllText(".env.local", $"SERVER_ID={serverId}{Environment.NewLine}");
         }
+        Console.WriteLine($"Server ID: {serverId}");
 
         // Add services to the container.
         builder.Services.AddEndpointsApiExplorer();
