@@ -40,9 +40,9 @@ public class MspClient
         m_defaultErrorHandler = onError;
     }
     
-    public Task HttpPost(string uri, NameValueCollection postValues)
+    public Task HttpPost(string uri, NameValueCollection postValues, NameValueCollection? headers = null)
     {
-        return HttpPostInternal(uri, postValues).ContinueWithOnSuccess(wrapperTask =>
+        return HttpPostInternal(uri, postValues, headers).ContinueWithOnSuccess(wrapperTask =>
         {
             var wrapper = wrapperTask.Result;
             if (wrapper.success) return;
@@ -52,9 +52,9 @@ public class MspClient
         });
     }    
 
-    public Task<TTargetType> HttpPost<TTargetType>(string uri, NameValueCollection postValues)
+    public Task<TTargetType> HttpPost<TTargetType>(string uri, NameValueCollection postValues, NameValueCollection? headers = null)
     {
-        return HttpPostInternal(uri, postValues).ContinueWithOnSuccess(wrapperTask =>
+        return HttpPostInternal(uri, postValues, headers).ContinueWithOnSuccess(wrapperTask =>
         {
             var wrapper = wrapperTask.Result;
             var result = wrapper.payload.ToObject<TTargetType>();
@@ -72,7 +72,8 @@ public class MspClient
 
     private Task<ApiResponseWrapper> HttpPostInternal(
         string uri,
-        NameValueCollection postValues
+        NameValueCollection postValues,
+        NameValueCollection? headers = null
     )  {
         var xdebugTrigger = Environment.GetEnvironmentVariable("XDEBUG_TRIGGER"); // boolean
         if (!string.IsNullOrEmpty(xdebugTrigger))
@@ -88,8 +89,14 @@ public class MspClient
         {
             Content = content
         };
+        if (headers != null)
+        {
+            foreach (var key in headers.AllKeys)
+            {
+                request.Headers.Add(key!, headers[key]);
+            }
+        }
         request.Headers.Add("X-Server-Id", m_serverId);
-        request.Headers.Add("X-Remove-Previous", "true");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return m_client.SendAsync(request).ContinueWithOnSuccess(postTask => 
         {

@@ -7,6 +7,7 @@ public class ProgramStateMachine
 {
     private readonly StateMachine<State, Trigger> m_machine;
     
+    public event Action? OnAwaitingSetupStateEnteredEvent;
     public event Action? OnSetupStateEnteredEvent;
     public event Action? OnSimulationStateEnteredEvent;
     public event Action? OnReportStateEnteredEvent;
@@ -23,7 +24,7 @@ public class ProgramStateMachine
         
         m_machine.Configure(State.AwaitingSetup)
             .Permit(Trigger.SetupGame, State.Setup)
-            .OnEntry(() => Console.WriteLine("Entering AwaitingSetup state"))
+            .OnEntry(OnAwaitingSetupStateEntered)
             .OnExit(() => Console.WriteLine("Exiting AwaitingSetup state"));
 
         m_machine.Configure(State.Setup)
@@ -55,6 +56,12 @@ public class ProgramStateMachine
             OnStateTransitionedEvent?.Invoke(transition);
         });
     }
+
+    private void OnAwaitingSetupStateEntered()
+    {
+        Console.WriteLine("Entering AwaitingSetup state");
+        OnAwaitingSetupStateEnteredEvent?.Invoke();
+    }    
     
     private void OnSetupStateEntered()
     {

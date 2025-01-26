@@ -57,7 +57,9 @@ public class ProgramManager()
         {
             nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
         }
-        return GetMspClient().HttpPost("/api/Simulation/Upsert", nameValueCollection);
+        return GetMspClient().HttpPost("/api/Simulation/Upsert", nameValueCollection,
+            new NameValueCollection { { "X-Remove-Previous", "true" } }
+        );
     }
     
     private void OnSetupStateEntered()
@@ -110,7 +112,8 @@ public class ProgramManager()
             new NameValueCollection
             {
                 { "kpiValues", JsonConvert.SerializeObject(kpis) }
-            }
+            },
+            new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } }
         );
     }
 
@@ -188,6 +191,11 @@ public class ProgramManager()
         m_mspClient ??= new MspClient(serverId, gameSessionApi, apiAccessToken, apiAccessRenewToken);
         if (m_programStateMachine != null) return;
         m_programStateMachine = new ProgramStateMachine();
+        m_programStateMachine.OnAwaitingSetupStateEnteredEvent += () =>
+        {
+            m_setupAccepted = false;
+            m_simulationDefinitions = null;
+        };
         m_programStateMachine.OnSetupStateEnteredEvent += OnSetupStateEntered;
         m_programStateMachine.OnSimulationStateEnteredEvent += OnSimulationStateEntered;
         m_programStateMachine.OnReportStateEnteredEvent += OnReportStateEntered;
