@@ -9,4 +9,9 @@ obj/
 # any DOT file 
 *.dot
 
+# VS project files
+.vs/
+*.csproj.user
+
+# User-specific files
 .env.local

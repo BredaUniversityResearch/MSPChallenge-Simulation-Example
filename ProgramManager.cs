@@ -52,16 +52,12 @@ public class ProgramManager()
     {
         if (OnSimulationDefinitionsEvent == null) return Task.CompletedTask;
         m_simulationDefinitions = OnSimulationDefinitionsEvent(m_gameSessionInfo!);
-        var tasks = new List<Task>();
-        foreach (var definition in m_simulationDefinitions!)
+        var nameValueCollection = new NameValueCollection();
+        foreach (var simulationDefinition in m_simulationDefinitions)
         {
-            tasks.Add(GetMspClient().HttpPost("/api/Simulation/Upsert", new NameValueCollection
-            {
-                { "name", definition.Name },
-                { "version", definition.Version }
-            }));
+            nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
         }
-        return Task.WhenAll(tasks);
+        return GetMspClient().HttpPost("/api/Simulation/Upsert", nameValueCollection);
     }
     
     private void OnSetupStateEntered()

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Specialized;
 using System.Net.Http.Headers;
+using System.Web;
 using MSPChallenge_Simulation_Example.Api;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -76,12 +77,8 @@ public class MspClient
         var xdebugTrigger = Environment.GetEnvironmentVariable("XDEBUG_TRIGGER"); // boolean
         if (!string.IsNullOrEmpty(xdebugTrigger))
         {        
-            postValues.Add("XDEBUG_TRIGGER", xdebugTrigger);
-        }
-        var xdebugServername = Environment.GetEnvironmentVariable("XDEBUG_SERVER_NAME");
-        if (!string.IsNullOrEmpty(xdebugTrigger))
-        {        
-            postValues.Add("serverName", xdebugServername);
+            // add XDEBUG_TRIGGER as url query parameter to trigger xdebug
+            uri = $"{uri}?XDEBUG_TRIGGER={HttpUtility.UrlEncode(xdebugTrigger)}";
         }
         var content = new FormUrlEncodedContent(postValues.AllKeys
             .Where(k => k != null)
@@ -92,6 +89,7 @@ public class MspClient
             Content = content
         };
         request.Headers.Add("X-Server-Id", m_serverId);
+        request.Headers.Add("X-Remove-Previous", "true");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return m_client.SendAsync(request).ContinueWithOnSuccess(postTask => 
         {
