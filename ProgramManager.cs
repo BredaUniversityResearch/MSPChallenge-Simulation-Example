@@ -254,6 +254,11 @@ public class ProgramManager()
         {
             app.UseHttpsRedirection();
         }
+
+        app.MapPost("/Watchdog/Ping", () => Results.Ok(new { success = "1", message = "Pong" }))
+        .DisableAntiforgery()
+        .WithName("Ping")
+        .WithOpenApi();
         app.MapPost("/Watchdog/SetMonth", ([FromBody] SetMonthRequest request) =>
         {
             try {
@@ -271,7 +276,6 @@ public class ProgramManager()
         .DisableAntiforgery()
         .WithName("SetMonth")
         .WithOpenApi();
-
         app.MapPost("/Watchdog/UpdateState", ([FromBody] UpdateStateRequest request) => {
             var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_token);
             var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_renew_token);
