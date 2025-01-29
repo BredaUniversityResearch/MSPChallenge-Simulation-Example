@@ -165,14 +165,14 @@ void CalculateKpis(
 
         var kpi = new KPI()
         {
-            name = "SunHours",
+            name = $"SunHours {layerType.Value.displayName}",
             type = "ECOLOGY", // to fix
             value = sunHoursPerCoordinate.Average(),
             unit = "hours",
             month = simulatedMonthIdentifier,
             country = layerType.Value.value // eez layer type value = country id
         };
-        Console.WriteLine($"KPI: {kpi.name} {layerType.Value.displayName}, Value: {kpi.value} {kpi.unit}");
+        Console.WriteLine($"KPI: {kpi.name}, Value: {kpi.value} {kpi.unit}");
         kpis.Add(kpi);
     }
 }
