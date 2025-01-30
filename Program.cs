@@ -166,7 +166,7 @@ void CalculateKpis(
         var kpi = new KPI()
         {
             name = $"SunHours {layerType.Value.displayName}",
-            type = "ECOLOGY", // to fix
+            type = "EXTERNAL",
             value = sunHoursPerCoordinate.Average(),
             unit = "hours",
             month = simulatedMonthIdentifier,
