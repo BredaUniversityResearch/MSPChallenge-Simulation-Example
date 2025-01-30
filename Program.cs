@@ -170,7 +170,8 @@ void CalculateKpis(
             value = sunHoursPerCoordinate.Average(),
             unit = "hours",
             month = simulatedMonthIdentifier,
-            country = layerType.Value.value // eez layer type value = country id
+            country = -1 // for now, the server only supports showing non-country specific external KPIs
+            //country = layerType.Value.value // eez layer type value = country id
         };
         Console.WriteLine($"KPI: {kpi.name}, Value: {kpi.value} {kpi.unit}");
         kpis.Add(kpi);
