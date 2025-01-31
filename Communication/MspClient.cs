@@ -13,6 +13,8 @@ public class MspClient
     private readonly string m_serverId;
     private readonly HttpClient m_client;
     private Action<Exception>? m_defaultErrorHandler;
+    private string m_apiAccessToken;
+    private string m_apiRefreshToken;
 
     public class ApiResponseWrapper
     {
@@ -24,7 +26,7 @@ public class MspClient
         public JToken payload = null;
     }
 
-    public MspClient(string serverId, string apiBaseUrl, ApiToken apiAccessToken, ApiToken apiRefreshToken)
+    public MspClient(string serverId, string apiBaseUrl, string apiAccessToken, string apiRefreshToken)
     {
         // todo: implement token refresh
         m_serverId = serverId;
@@ -32,9 +34,27 @@ public class MspClient
         {
             BaseAddress = new Uri(apiBaseUrl)
         };
-        m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiAccessToken.token);
+        m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiAccessToken);
+        m_apiAccessToken = apiAccessToken;
+        m_apiRefreshToken = apiRefreshToken;
     }
-    
+
+    public string apiAccessToken
+    {
+        get => m_apiAccessToken;
+        set
+        {
+            m_apiAccessToken = value ?? throw new ArgumentNullException(nameof(value));
+            m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", m_apiAccessToken);
+        }
+    }
+
+    public string apiRefreshToken
+    {
+        get => m_apiRefreshToken;
+        set => m_apiRefreshToken = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
     public void SetDefaultErrorHandler(Action<Exception>? onError)
     {
         m_defaultErrorHandler = onError;

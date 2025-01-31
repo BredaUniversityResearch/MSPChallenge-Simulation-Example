@@ -29,16 +29,18 @@ public class ProgramManager()
     private string? m_gameSessionToken = null;
     private GameSessionInfo? m_gameSessionInfo = null;
     private List<SimulationDefinition>? m_simulationDefinitions = null;
-    
+
     // created upon 
     private ProgramStateMachine? m_programStateMachine;
-    
+
     // create upon the first UpdateState request
     private MspClient? m_mspClient;
 
-    private const int PollTokenFrequencySec = 60; // 60 seconds
+    private const int PollTokenFrequencySec = 60;
     private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
-
+    private const int RefreshApiAccessTokenFrequencySec = 900;
+    private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
+    
     // Define public events
     public event Func<GameSessionInfo, List<SimulationDefinition>>? OnSimulationDefinitionsEvent;
     public event Func<GameSessionInfo, bool>? OnQuestionAcceptSetupEvent;
@@ -46,40 +48,71 @@ public class ProgramManager()
     public event Func<int /* month */, Task>? OnSimulationStateEnteredEvent;
     public event Func<Task<List<KPI>>>? OnReportStateEnteredEvent;
     public event Action<double /* deltaTimeSec */>? OnTickEvent;
-    
+
     public ProgramManager(string[] args) : this()
     {
         m_args = args;
         TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
-        TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ =>
+        TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
+        OnTickEvent += ValidateWatchdogToken;
+        OnTickEvent += RefreshApiAccessToken;
+    }
+
+    private void RefreshApiAccessToken(double deltaTimeSec)
+    {
+        if (m_mspClient == null) return; // we need the MSP client to validate the api access token
+        m_refreshApiAccessTokenTimeLeftSec -= deltaTimeSec;
+        if (m_refreshApiAccessTokenTimeLeftSec > 0) return;
+        // reset the poll token time
+        while (m_refreshApiAccessTokenTimeLeftSec < 0)
         {
+            m_refreshApiAccessTokenTimeLeftSec += RefreshApiAccessTokenFrequencySec;
+        }        
+        // poll the token
+        GetMspClient().HttpPost<RequestTokenResult>(
+            "/api/User/RequestToken", new NameValueCollection()
+            {
+                { "api_refresh_token", m_mspClient.apiRefreshToken }
+            }
+        ).ContinueWithOnSuccess(task =>
+        {
+            m_mspClient.apiAccessToken = task.Result.api_access_token;
+            m_mspClient.apiRefreshToken = task.Result.api_refresh_token;
+            Console.WriteLine("Api access token refreshed.");
+        }, exception =>
+        {
+            Console.WriteLine($"Could not refresh api access token: {exception.Message}.");
+            Reset();
+        });        
+    }
+
+    private void ValidateWatchdogToken(double deltaTimeSec)
+    {
+        if (m_gameSessionToken == null) return; // we need a game session token to poll the token
+        if (m_mspClient == null) return; // we need the MSP client to poll the token
+        m_pollTokenTimeLeftSec -= deltaTimeSec;
+        if (m_pollTokenTimeLeftSec > 0) return;
+        // reset the poll token time
+        while (m_pollTokenTimeLeftSec < 0)
+        {
+            m_pollTokenTimeLeftSec += PollTokenFrequencySec;
+        }
+
+        // poll the token
+        GetMspClient().HttpPost<WatchdogToken>(
+            "/api/Simulation/GetWatchdogTokenForServer", new NameValueCollection()
+        ).ContinueWithOnSuccess(task =>
+        {
+            var tokenObj = task.Result;
+            if (m_gameSessionToken == tokenObj.watchdog_token) return;
+            Console.WriteLine("Watchdog token changed.");
+            Reset();
+        }, exception =>
+        {
+            Console.WriteLine($"Could not retrieve watchdog token: {exception.Message}.");
             Reset();
         });
-        OnTickEvent += deltaTimeSec =>
-        {
-            if (m_gameSessionToken == null) return; // we need a game session token to poll the token
-            if (m_mspClient == null) return; // we need the MSP client to poll the token
-            m_pollTokenTimeLeftSec -= deltaTimeSec;
-            if (m_pollTokenTimeLeftSec > 0) return;
-            // reset the poll token time
-            while (m_pollTokenTimeLeftSec < 0) {
-                m_pollTokenTimeLeftSec += PollTokenFrequencySec;    
-            }
-            // poll the token
-            GetMspClient().HttpPost<WatchdogToken>(
-                "/api/Simulation/GetWatchdogTokenForServer", new NameValueCollection()
-            ).ContinueWithOnSuccess(task => {
-                var tokenObj = task.Result;
-                if (m_gameSessionToken == tokenObj.watchdog_token) return;
-                Console.WriteLine("Watchdog token changed.");
-                //Reset();
-            }, exception =>
-            {
-                Console.WriteLine($"Could not retrieve watchdog token: {exception.Message}.");
-                //Reset();
-            });
-        };
     }
 
     private void Reset()
@@ -201,7 +234,7 @@ public class ProgramManager()
 
     private void Init(string serverId, string gameSessionApi, ApiToken apiAccessToken, ApiToken apiAccessRenewToken)
     {
-        m_mspClient ??= new MspClient(serverId, gameSessionApi, apiAccessToken, apiAccessRenewToken);
+        m_mspClient ??= new MspClient(serverId, gameSessionApi, apiAccessToken.token, apiAccessRenewToken.token);
         if (m_programStateMachine != null) return;
         m_programStateMachine = new ProgramStateMachine();
         m_programStateMachine.OnAwaitingSetupStateEnteredEvent += () =>
