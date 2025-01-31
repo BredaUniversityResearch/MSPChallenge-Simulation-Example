@@ -1,7 +1,7 @@
 ﻿using Stateless;
 using Stateless.Graph;
 
-namespace MSPChallenge_Simulation_Example.StateMachine;
+namespace MSPChallenge_Simulation.StateMachine;
 
 public class ProgramStateMachine
 {

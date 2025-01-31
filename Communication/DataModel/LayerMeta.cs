@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json;
 
-namespace MSPChallenge_Simulation_Example.Communication.DataModel;
+namespace MSPChallenge_Simulation.Communication.DataModel;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")] // needs to match json
 public class LayerMeta

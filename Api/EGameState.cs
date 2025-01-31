@@ -1,4 +1,4 @@
-namespace MSPChallenge_Simulation_Example.Api;
+namespace MSPChallenge_Simulation.Api;
 
 public enum EGameState
 {

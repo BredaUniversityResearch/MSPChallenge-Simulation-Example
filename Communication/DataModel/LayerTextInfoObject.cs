@@ -2,7 +2,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
-namespace MSPChallenge_Simulation_Example.Communication.DataModel;
+namespace MSPChallenge_Simulation.Communication.DataModel;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public class LayerTextInfoObject

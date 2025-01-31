@@ -1,12 +1,12 @@
 ﻿using System.Collections.Specialized;
 using System.Net.Http.Headers;
 using System.Web;
-using MSPChallenge_Simulation_Example.Api;
+using MSPChallenge_Simulation.Api;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using MSPChallenge_Simulation_Example.Extensions;
+using MSPChallenge_Simulation.Extensions;
 
-namespace MSPChallenge_Simulation_Example.Communication;
+namespace MSPChallenge_Simulation.Communication;
 
 public class MspClient
 {

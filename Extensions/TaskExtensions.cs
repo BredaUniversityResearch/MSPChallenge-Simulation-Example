@@ -1,4 +1,4 @@
-﻿namespace MSPChallenge_Simulation_Example.Extensions;
+﻿namespace MSPChallenge_Simulation.Extensions;
 
 public static class TaskExtensions
 {

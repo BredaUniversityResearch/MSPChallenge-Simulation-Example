@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace MSPChallenge_Simulation_Example.Communication.DataModel;
+namespace MSPChallenge_Simulation.Communication.DataModel;
 class JsonConverterLayerType : JsonConverter
 {
 	public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)

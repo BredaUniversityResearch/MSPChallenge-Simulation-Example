@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MSPChallenge_Simulation_Example.Api;
+namespace MSPChallenge_Simulation.Api;
 
 public class ApiToken
 {

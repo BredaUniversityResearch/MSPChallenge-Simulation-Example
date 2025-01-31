@@ -1,4 +1,4 @@
-namespace MSPChallenge_Simulation_Example.Communication.DataModel;
+namespace MSPChallenge_Simulation.Communication.DataModel;
 
 public enum ETextState
 {

@@ -2,17 +2,17 @@
 using System.CommandLine;
 using DotNetEnv;
 using Microsoft.AspNetCore.Mvc;
-using MSPChallenge_Simulation_Example.Api;
-using MSPChallenge_Simulation_Example.Communication;
-using MSPChallenge_Simulation_Example.Communication.DataModel;
-using MSPChallenge_Simulation_Example.Extensions;
-using MSPChallenge_Simulation_Example.Simulation;
-using MSPChallenge_Simulation_Example.Simulation.Exceptions;
-using MSPChallenge_Simulation_Example.StateMachine;
+using MSPChallenge_Simulation.Extensions;
+using MSPChallenge_Simulation.Api;
+using MSPChallenge_Simulation.Communication;
+using MSPChallenge_Simulation.Communication.DataModel;
+using MSPChallenge_Simulation.Simulation;
+using MSPChallenge_Simulation.Simulation.Exceptions;
+using MSPChallenge_Simulation.StateMachine;
 using Newtonsoft.Json;
-using TaskExtensions = MSPChallenge_Simulation_Example.Extensions.TaskExtensions;
+using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 
-namespace MSPChallenge_Simulation_Example;
+namespace MSPChallenge_Simulation;
 
 public class ProgramManager()
 {
@@ -52,9 +52,9 @@ public class ProgramManager()
     public ProgramManager(string[] args) : this()
     {
         m_args = args;
-        TaskExtensions.RegisterExceptionHandler<FatalException>(
+        Extensions.TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
-        TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
+        Extensions.TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
         OnTickEvent += ValidateWatchdogToken;
         OnTickEvent += RefreshApiAccessToken;
     }

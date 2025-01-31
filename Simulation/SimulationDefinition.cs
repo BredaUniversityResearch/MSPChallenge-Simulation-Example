@@ -1,4 +1,4 @@
-﻿namespace MSPChallenge_Simulation_Example.Simulation;
+﻿namespace MSPChallenge_Simulation.Simulation;
 
 public class SimulationDefinition(string name, string version)
 {

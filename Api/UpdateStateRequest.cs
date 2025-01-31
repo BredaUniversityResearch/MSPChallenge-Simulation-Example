@@ -1,4 +1,4 @@
-namespace MSPChallenge_Simulation_Example.Api;
+namespace MSPChallenge_Simulation.Api;
 
 public record UpdateStateRequest(
     string game_session_api,

@@ -1,9 +1,9 @@
 using System.Collections.Specialized;
-using MSPChallenge_Simulation_Example;
-using MSPChallenge_Simulation_Example.Api;
-using MSPChallenge_Simulation_Example.Communication.DataModel;
-using MSPChallenge_Simulation_Example.Extensions;
-using MSPChallenge_Simulation_Example.Simulation;
+using MSPChallenge_Simulation;
+using MSPChallenge_Simulation.Api;
+using MSPChallenge_Simulation.Communication.DataModel;
+using MSPChallenge_Simulation.Extensions;
+using MSPChallenge_Simulation.Simulation;
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 using SunCalcNet;
