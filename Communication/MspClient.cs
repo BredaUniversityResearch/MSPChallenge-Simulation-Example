@@ -42,8 +42,12 @@ public class MspClient
     
     public Task HttpPost(string uri, NameValueCollection postValues, NameValueCollection? headers = null)
     {
-        return HttpPostInternal(uri, postValues, headers).ContinueWithOnSuccess(wrapperTask =>
+        return HttpPostInternal(uri, postValues, headers).ContinueWith(wrapperTask =>
         {
+            if (null != wrapperTask.Exception)
+            {
+                throw wrapperTask.Exception;
+            }            
             var wrapper = wrapperTask.Result;
             if (wrapper.success) return;
             var exception = new Exception(string.IsNullOrEmpty(wrapper.message) ? "Unknown error" : wrapper.message);
@@ -54,8 +58,12 @@ public class MspClient
 
     public Task<TTargetType> HttpPost<TTargetType>(string uri, NameValueCollection postValues, NameValueCollection? headers = null)
     {
-        return HttpPostInternal(uri, postValues, headers).ContinueWithOnSuccess(wrapperTask =>
+        return HttpPostInternal(uri, postValues, headers).ContinueWith(wrapperTask =>
         {
+            if (null != wrapperTask.Exception)
+            {
+                throw wrapperTask.Exception;
+            }
             var wrapper = wrapperTask.Result;
             var result = wrapper.payload.ToObject<TTargetType>();
             try {
@@ -98,21 +106,21 @@ public class MspClient
         }
         request.Headers.Add("X-Server-Id", m_serverId);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        return m_client.SendAsync(request).ContinueWithOnSuccess(postTask => 
+        return m_client.SendAsync(request).ContinueWith(postTask => 
         {
             if (postTask.IsFaulted)
             {
                 m_defaultErrorHandler?.Invoke(postTask.Exception);
-                throw postTask.Exception;;
+                throw postTask.Exception;
             }            
             var response = postTask.Result;
             if (!response.IsSuccessStatusCode)
             {
                 var errorMessage = $"HTTP request failed with status code {response.StatusCode}";
-                m_defaultErrorHandler?.Invoke(new HttpRequestException(errorMessage));
-                throw new HttpRequestException(errorMessage);
+                m_defaultErrorHandler?.Invoke(new HttpRequestException(errorMessage, null, response.StatusCode));
+                throw new HttpRequestException(errorMessage, null, response.StatusCode);
             }            
-            return response.Content.ReadAsStringAsync().ContinueWithOnSuccess(readTask =>
+            return response.Content.ReadAsStringAsync().ContinueWith(readTask =>
             {
                 if (readTask.IsFaulted)
                 {

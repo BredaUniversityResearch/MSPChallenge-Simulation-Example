@@ -10,6 +10,7 @@ using MSPChallenge_Simulation_Example.Simulation;
 using MSPChallenge_Simulation_Example.Simulation.Exceptions;
 using MSPChallenge_Simulation_Example.StateMachine;
 using Newtonsoft.Json;
+using TaskExtensions = MSPChallenge_Simulation_Example.Extensions.TaskExtensions;
 
 namespace MSPChallenge_Simulation_Example;
 
@@ -35,6 +36,9 @@ public class ProgramManager()
     // create upon the first UpdateState request
     private MspClient? m_mspClient;
 
+    private const int PollTokenFrequencySec = 60; // 60 seconds
+    private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
+
     // Define public events
     public event Func<GameSessionInfo, List<SimulationDefinition>>? OnSimulationDefinitionsEvent;
     public event Func<GameSessionInfo, bool>? OnQuestionAcceptSetupEvent;
@@ -46,6 +50,47 @@ public class ProgramManager()
     public ProgramManager(string[] args) : this()
     {
         m_args = args;
+        TaskExtensions.RegisterExceptionHandler<FatalException>(
+            (exception) => throw exception);
+        TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ =>
+        {
+            Reset();
+        });
+        OnTickEvent += deltaTimeSec =>
+        {
+            if (m_gameSessionToken == null) return; // we need a game session token to poll the token
+            if (m_mspClient == null) return; // we need the MSP client to poll the token
+            m_pollTokenTimeLeftSec -= deltaTimeSec;
+            if (m_pollTokenTimeLeftSec > 0) return;
+            // reset the poll token time
+            while (m_pollTokenTimeLeftSec < 0) {
+                m_pollTokenTimeLeftSec += PollTokenFrequencySec;    
+            }
+            // poll the token
+            GetMspClient().HttpPost<WatchdogToken>(
+                "/api/Simulation/GetWatchdogTokenForServer", new NameValueCollection()
+            ).ContinueWithOnSuccess(task => {
+                var tokenObj = task.Result;
+                if (m_gameSessionToken == tokenObj.watchdog_token) return;
+                Console.WriteLine("Watchdog token changed.");
+                //Reset();
+            }, exception =>
+            {
+                Console.WriteLine($"Could not retrieve watchdog token: {exception.Message}.");
+                //Reset();
+            });
+        };
+    }
+
+    private void Reset()
+    {
+        Console.WriteLine("Resetting.");
+        m_programStateMachine = null;
+        m_setupAccepted = false;
+        m_gameSessionToken = null;
+        m_mspClient = null;
+        m_simulationDefinitions = null;
+        m_currentGameState = null;
     }
     
     private Task GetSimulationDefinitions()
@@ -83,10 +128,9 @@ public class ProgramManager()
     private void OnSimulationStateEntered()
     {
         // eg. do simulation calculations
-        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth).ContinueWith(task => {
-            HandleTaskExceptions(task);
-            m_programStateMachine?.Fire(Trigger.FinishedSimulation);
-        });
+        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth).ContinueWith(_ => {
+                m_programStateMachine?.Fire(Trigger.FinishedSimulation);
+            });
     }
     
     private void OnReportStateEntered()
@@ -94,12 +138,10 @@ public class ProgramManager()
         // eg. submit kpi's to MSP API
         OnReportStateEnteredEvent?.Invoke().ContinueWithOnSuccess(reportKpisTask =>
         {
-            HandleTaskExceptions(reportKpisTask);
             var kpis = reportKpisTask.Result;
             return SubmitKpis(kpis);
-        }).ContinueWithOnSuccess(submitKpisTask =>
+        }).ContinueWithOnSuccess(_ =>
         {
-            HandleTaskExceptions(submitKpisTask);
             m_programStateMachine?.Fire(Trigger.FinishedReport);
         });
     }
@@ -115,35 +157,6 @@ public class ProgramManager()
             },
             new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } }
         );
-    }
-
-    private void HandleTaskExceptions(Task task)
-    {
-        if (!task.IsFaulted) return;
-        // output all aggregated exceptions
-        FatalException? fatal = null;
-        TriggerResetException? reset = null;
-        foreach (var exception in task.Exception!.InnerExceptions)
-        {
-            Console.WriteLine(exception.Message);
-            if (exception is FatalException fatalException)
-            {
-                fatal = fatalException;
-            }
-            if (exception is TriggerResetException resetException)
-            {
-                reset = resetException;
-            }            
-        }
-        
-        if (fatal != null)
-        {
-            throw fatal; // Rethrow to crash the application
-        }
-
-        if (reset == null) return;
-        m_programStateMachine = null;
-        m_setupAccepted = false;
     }
     
     public void SetTickRateMs(int tickRateMs)
