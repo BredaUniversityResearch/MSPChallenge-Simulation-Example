@@ -38,7 +38,6 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 //   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
 Task Setup()
 {
-    program.GetMspClient().SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
     var values = new NameValueCollection
     {
         { "layer_tags", "EEZ,Polygon" }

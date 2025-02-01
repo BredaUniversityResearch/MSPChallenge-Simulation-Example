@@ -52,9 +52,9 @@ public class ProgramManager()
     public ProgramManager(string[] args) : this()
     {
         m_args = args;
-        Extensions.TaskExtensions.RegisterExceptionHandler<FatalException>(
+        TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
-        Extensions.TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
+        TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
         OnTickEvent += ValidateWatchdogToken;
         OnTickEvent += RefreshApiAccessToken;
     }
@@ -142,6 +142,7 @@ public class ProgramManager()
     
     private void OnSetupStateEntered()
     {
+        GetMspClient().SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
         GetSimulationDefinitions().ContinueWithOnSuccess(_ => 
             OnSetupEvent != null ? OnSetupEvent.Invoke() : Task.CompletedTask
         ).Unwrap().ContinueWith(task => {
