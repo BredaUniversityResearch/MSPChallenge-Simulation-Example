@@ -336,7 +336,7 @@ Task OnSimulationStateEnteredEvent(
 }
 ```
 This method calculates the KPIs for the given month, based on the actual date for the simulated month, the EEZ layer,
-and the EEZ layer objects. In the ***example***, it calculates the sun hours per country. See the CalculateKpis method.
+and the EEZ layer objects. In the ***example***, it calculates the sun hours per country. See the [CalculateKpis](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/2f769c9d89c2bb1d8cf3d1a3c6a47c1442a59461/Program.cs#L120) method.
 The CalculateKpis method just adds KPI's to kpis list like so:
 ```csharp
 var kpi = new KPI()
