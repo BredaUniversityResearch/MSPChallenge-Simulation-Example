@@ -313,7 +313,7 @@ It looks like this: (simplified version)
     });
 ```
 So, this basically chains a couple of http requests together, to get the required data for the simulation setup.
-Note that the last line registers the OnSimulationStateEnteredEvent event, which is called when on each monthly
+Note that the last line registers the OnSimulationStateEnteredEvent event, which is called on each monthly
 simulation given the month number, the layer, and the layer objects.
 
 The simulation looks like this (simplified version):
