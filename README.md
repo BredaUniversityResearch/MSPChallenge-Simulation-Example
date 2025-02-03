@@ -181,7 +181,7 @@ If that works, you can start implementing your own simulation by modifying the e
 1. Congratulations, you have successfully registered your external watchdog server to the
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
    Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
-   - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-program-setup) section to
+   - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
      understand the structure of the program.
    - For playing with the ***example*** simulation, check the [Usage](#usage) section.
 
