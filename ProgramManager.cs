@@ -236,6 +236,12 @@ public class ProgramManager()
     private void Init(string serverId, string gameSessionApi, ApiToken apiAccessToken, ApiToken apiAccessRenewToken)
     {
         m_mspClient ??= new MspClient(serverId, gameSessionApi, apiAccessToken.token, apiAccessRenewToken.token);
+        
+        // update token just received
+        m_mspClient.apiAccessToken = apiAccessToken.token;
+        m_mspClient.apiRefreshToken = apiAccessRenewToken.token;
+        m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
+        
         if (m_programStateMachine != null) return;
         m_programStateMachine = new ProgramStateMachine();
         m_programStateMachine.OnAwaitingSetupStateEnteredEvent += () =>
