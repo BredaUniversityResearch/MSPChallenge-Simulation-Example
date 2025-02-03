@@ -34,9 +34,8 @@ public class MspClient
         {
             BaseAddress = new Uri(apiBaseUrl)
         };
-        m_client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiAccessToken);
-        m_apiAccessToken = apiAccessToken;
-        m_apiRefreshToken = apiRefreshToken;
+        this.apiAccessToken = apiAccessToken;
+        this.apiRefreshToken = apiRefreshToken;
     }
 
     public string apiAccessToken
