@@ -4,7 +4,7 @@
 This platform can roughly be divided into a [server]() and
 a [client](https://github.com/BredaUniversityResearch/MSPChallenge-Client) part. The server has many
 [components](https://community.mspchallenge.info/wiki/Source_code_documentation), one of which is the watchdog service.
-The watchdog service is responsible for managing simulations, the built-in ones are
+The watchdog service is responsible for managing simulations, the built-in simulations are
 [Ecology](https://community.mspchallenge.info/wiki/Ecosystem_simulation_(MEL_%26_EwE)),
 [Energy](https://community.mspchallenge.info/wiki/Energy_simulation_(CEL)), and
 [Shipping](https://community.mspchallenge.info/wiki/Shipping_simulation_(SEL)).
