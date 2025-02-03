@@ -192,8 +192,9 @@ With the watchdog server connected to the
 you can now start the [client](https://github.com/BredaUniversityResearch/MSPChallenge-Client) and
 [join the game session](https://community.mspchallenge.info/wiki/Connecting_to_a_server).
 For a local development setup, just use `localhost` as the server address.
-   * todo: explain how to start the simulation in the client
-   * todo: explain how to see KPIs from the simulation in the client
+
+To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
+todo
 
 # Watchdog program.cs
 
@@ -222,7 +223,7 @@ If you need to handle multiple game sessions, you will need to:
 * [request this feature](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues) and wait for it to be implemented in the example's ProgramManager class;
 * modify the program yourself to handle this.
 
-The ProgramManager class is the main class of the watchdog server. It is responsible for:
+The ProgramManager class is the main class used, it handles:
 * creating an initial .env.local file with a unique SERVER_ID uuid value;
 * reading and handling command line arguments, which are:
   - --port: Set the port the API server is running on
