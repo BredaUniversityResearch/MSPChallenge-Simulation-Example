@@ -25,4 +25,8 @@
     <None Include=".http\4.Watchdog-UpdateState-End.http" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="README-source\" />
+  </ItemGroup>
+
 </Project>

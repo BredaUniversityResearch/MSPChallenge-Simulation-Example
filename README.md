@@ -193,8 +193,20 @@ you can now start the [client](https://github.com/BredaUniversityResearch/MSPCha
 [join the game session](https://community.mspchallenge.info/wiki/Connecting_to_a_server).
 For a local development setup, just use `localhost` as the server address.
 
-To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
-todo
+To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in
+the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
+
+To view the KPIs, follow these steps:
+1. You need to open the dashboard in the client by pressing the "Dashboard" button on the left side menu.
+
+   !["Open the dashboard"-button](README-source/open-the-dashboard.png)
+1. On the dashboard, choose the "Other"-category button (the globe) in the top menu.
+   In the image below, it has been selected, and it is colored orange:
+
+   ![Choose the category "Other"](README-source/kpi-dashboard-category-other.png)
+1. Now you should see the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
+
+![Sun hours KPIs](README-source/kpi-sun-hours.png)
 
 # Watchdog program.cs
 
@@ -227,7 +239,8 @@ The ProgramManager class is the main class used, it handles:
 * creating an initial .env.local file with a unique SERVER_ID uuid value;
 * reading and handling command line arguments, which are:
   - --port: Set the port the API server is running on
-  - --dotfile: Output the DOT file to the specified path. You can view it on http://www.webgraphviz.com/.
+  - --dotfile: Output the DOT file to the specified path. You can view it on http://www.webgraphviz.com/. E.g.:
+    ![.dot file outputting the program state machine](README-source/program-state-machine.png)
   - --https-redirection: Enable or disable HTTPS redirection
 * generating and opening a swagger UI showing the API of the watchdog server;
 * the connection to the server, as-in serving an API for the server to connect to, as well as setting up a http client
