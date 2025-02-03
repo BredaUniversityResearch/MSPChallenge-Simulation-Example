@@ -150,6 +150,8 @@ If that works, you can start implementing your own simulation by modifying the e
      [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server).
    - Admin password: `test`. You will need this password as a admin user in the client.
    - Player password. Just leave this field empty.
+  
+   More information on create a game session can be found on the ["Setting up your own server"-page](https://community.mspchallenge.info/wiki/Setting_up_your_own_server).
 1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. 
    The session created should end up in state "setup", and the watchdog server console output should show something like:
    ```text
