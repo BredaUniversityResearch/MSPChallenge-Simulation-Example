@@ -59,7 +59,7 @@ If that works, you can start implementing your own simulation by modifying the e
 1. Now you need manually register the watchdog in the [Settings](http://localhost/manager/setting) of the Server Manager web application. For a local
    development setup, the default url is: http://localhost/manager/setting.
    
-    todo: explain account registration 
+    Note that you need a [MSP Challenge community account](https://auth2.mspchallenge.info/register) in order to start using the software. Get an account [here](https://auth2.mspchallenge.info/register).
 1. On the [Settings](http://localhost/manager/setting) page press the "More details"-icon of the "Watchdog servers" setting.
 1. Add a new Watchdog server by filling in all the fields:
     - Watchdog server name. This is the name of your watchdog server, for the ***example*** this could be:
