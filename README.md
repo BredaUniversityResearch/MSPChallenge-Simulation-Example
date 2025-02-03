@@ -442,3 +442,9 @@ If the server api is lacking a call you need, you can request it on the [Github 
 # License
 
 See [Terms & Conditions](https://community.mspchallenge.info/wiki/Terms_%26_Conditions)
+
+# Sequence diagram
+
+The sequence diagram below shows the flow of the watchdog server, from setup to monthly simulation to reporting.
+
+![Sequence diagram](README-source/sequence-diagram.svg)
