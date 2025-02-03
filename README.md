@@ -182,7 +182,7 @@ If that works, you can start implementing your own simulation by modifying the e
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
    Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
    - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
-     understand the structure of the program.
+     understand the structure of the program. Then, 
    - For playing with the ***example*** simulation, check the [Usage](#usage) section.
 
 # Usage
@@ -210,7 +210,8 @@ To view the KPIs, follow these steps:
 
 # Watchdog program.cs
 
-The program.cs file is the entry point of the watchdog server. Let me go through it step by step.
+The [program.cs](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/Program.cs) file
+is the entry point of the watchdog server. Let me go through it step by step.
 
 Look at the first lines:
 ```csharp
@@ -382,6 +383,60 @@ Finally this line:
 program.Run();
 ```
 This starts the watchdog server.
+
+# How to get data from the server
+
+The watchdog server can get data from the server by using the
+[MspClient](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/Communication/MspClient.cs),
+of which you can get an instance by calling the
+[GetMspClient()](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/ProgramManager.cs#L219)
+method on the
+[ProgramManager](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/ProgramManager.cs)
+object.
+
+All data available by server api calls can be found - and tested - on the server api Swagger UI, which can be accessed by opening
+/api/doc on the server host, e.g. for the local development setup: http://localhost/api/doc.
+
+Most of the calls require an api access token, which will be handled by the Program manager and the MspClient as follows:
+* on receiving a /Watchdog/UpdateState request it will receive a token (see [here](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/ProgramManager.cs#L326));
+* the MSP client will use this token for all subsequent requests using a Bear token authorization header (see [here](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/Communication/MspClient.cs#L48));
+* every 15 minutes the token will be refreshed by the Program manager (see [here](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/ProgramManager.cs#L59)).
+
+So, if you want to test an api call using the Swagger UI, start with these steps first:
+1. On the top there is a "sessionId" field, fill in the id of the game session as mention on the [Server Manager web application](http://localhost/manager).
+1. In the "User" section, select /api/User/RequestSession to uncollapse it.
+1. Press the "Try it out" button.
+1. Fill in the required fields. You can leave build_timestamp and country_id to the default values.
+   Fill-in your [community](https://community.mspchallenge.info) username and set the "country password" to the Admin
+   password you set when creating the game session.
+1. Press the "Execute" button.
+1. The response is a json object with a payload field. Inside the payload there is a field called "api_access_token".
+    Copy this value into the clipboard. Only select the characters inside the quotes, not the quotes themselves.
+1. On the top right press the "Authorize" button.
+1. In the "Value" field, paste the api access token and press the "Authorize" button, followed by the "Close" button.
+1. Now you can test any api call, and it will use the api access token you provided.
+
+One of the [HttpPost](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/Communication/MspClient.cs#L79)
+calls of the MspClient is templated and expects a type to be returned. E.g.
+```csharp
+program.GetMspClient().HttpPost<YearMonthObject>(
+    "/api/Game/GetActualDateForSimulatedMonth",
+    new NameValueCollection
+    {
+        { "simulated_month", month.ToString() }
+    }
+);
+```
+returns an instance of
+[YearMonthObject](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/Communication/DataModel/YearMonthObject.cs).
+There a quite some data models defined in the
+[DataModel](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/tree/main/Communication/DataModel) folder.
+But if you need to get data from the server that is not yet defined, you can create a new data model class, and use it in
+the HttpPost call.
+
+Note that the Swagger UI also provides the json schema of the data models, which can be used to create the data model classes.
+
+If the server api is lacking a call you need, you can request it on the [Github repository](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues).
 
 # License
 
