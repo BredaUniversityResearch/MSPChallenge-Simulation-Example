@@ -47,7 +47,7 @@ registering it to the [MSP Challenge server](https://github.com/BredaUniversityR
 a test run with some sun hours simulation.
 If that works, you can start implementing your own simulation by modifying the example code.
 
-1. Do **not** clone this repository, but download the latest release from the [releases page](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/releases) instead.
+1. Do **not** clone this repository, but download the latest release from the [releases page](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/releases) instead (1st release is March '25) .
    You should create a new repository for your own simulation, and copy the contents of the example repository to your
    own repository.
 1. Unzip the downloaded file to a location of your choice.
