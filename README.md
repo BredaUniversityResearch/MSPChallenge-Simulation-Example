@@ -219,7 +219,7 @@ If you need to handle multiple game sessions, you will need to:
   
   (it would also require each instance to only accept a specific game session - see program.OnQuestionAcceptSetupEvent -
   otherwise a single game session would be simulated by multiple instances, potentially causing duplicate KPIs)
-* request this feature and wait for it to be implemented in the example's ProgramManager class;
+* (request this feature)[https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues] and wait for it to be implemented in the example's ProgramManager class;
 * modify the program yourself to handle this.
 
 The ProgramManager class is the main class of the watchdog server. It is responsible for:
