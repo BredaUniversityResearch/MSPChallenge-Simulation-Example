@@ -330,6 +330,7 @@ It looks like this: (simplified version)
     });
 ```
 So, this basically chains a couple of http requests together, to get the required data for the simulation setup.
+The executed code is fully asynchronous, and the next step is only executed when the previous step is finished.
 Note that the last line registers the OnSimulationStateEnteredEvent event, which is called on each monthly
 simulation given the month number, the layer, and the layer objects.
 
