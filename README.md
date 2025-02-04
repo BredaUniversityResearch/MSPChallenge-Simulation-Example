@@ -38,7 +38,7 @@ If you have any questions, please contact us, see the
 1. Test the server by opening the Server Manager web application in a browser, for a local development setup,
    the default url is: http://localhost/manager.
 1. Install the [MSP Challenge client](https://github.com/BredaUniversityResearch/MSPChallenge-Client), version
-   [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Client/releases)
+   [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Client/releases) (release is March '25)
 
 #  Installation
 
