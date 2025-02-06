@@ -66,7 +66,6 @@ If that works, you can start implementing your own simulation by modifying the e
       `SunHours Example`.
     - Watchdog server id. This is the SERVER_ID value from the .env.local file. Just copy and paste it here.
     - Scheme. For dev purposes, you can use `http`.
-    - Token: `example`
     - Address. This is the address where the watchdog server is running. For a local development setup, where the
       watchdog server is running on the same machine as docker, you can use `host.docker.internal`.
     - Port. This is the port where the watchdog server is running. For the ***example*** this is `5026`.
