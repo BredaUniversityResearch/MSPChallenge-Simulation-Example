@@ -550,7 +550,7 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="kc0BTYQQ7WMuLZMwDxTh-16" value="&lt;div&gt;Session&lt;/div&gt;&lt;div&gt;creation\&lt;/div&gt;&lt;div&gt;ID: 1&lt;br&gt;&lt;/div&gt;" style="html=1;verticalAlign=bottom;endArrow=block;labelBackgroundColor=none;fontFamily=Verdana;fontSize=12;elbow=vertical;edgeStyle=orthogonalEdgeStyle;curved=1;" edge="1" parent="1">
+        <mxCell id="kc0BTYQQ7WMuLZMwDxTh-16" value="&lt;div&gt;Session&lt;/div&gt;&lt;div&gt;creation,&lt;/div&gt;&lt;div&gt;ID: 1&lt;br&gt;&lt;/div&gt;" style="html=1;verticalAlign=bottom;endArrow=block;labelBackgroundColor=none;fontFamily=Verdana;fontSize=12;elbow=vertical;edgeStyle=orthogonalEdgeStyle;curved=1;" edge="1" parent="1">
           <mxGeometry x="0.0706" y="-40" relative="1" as="geometry">
             <mxPoint x="479.32352941176487" y="320.05882352941194" as="sourcePoint" />
             <mxPoint x="479.5" y="430" as="targetPoint" />
