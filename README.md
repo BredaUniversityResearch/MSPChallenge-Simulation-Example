@@ -70,7 +70,7 @@ If that works, you can start implementing your own simulation by modifying the e
       watchdog server is running on the same machine as docker, you can use `host.docker.internal`.
     - Port. This is the port where the watchdog server is running. For the ***example*** this is `5026`.
     - Simulation settings. This is a json object with the settings for the simulation. Basically it holds the KPIs that
-      will be reported to the server, having this structure:
+      will be reported to the server, having this structure below. Please note that the "simulation_type" should always be set to value "external" since this is required by the client.
     ```json
         {
           "simulation_type": "External",
