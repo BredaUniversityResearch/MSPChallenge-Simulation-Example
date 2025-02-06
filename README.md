@@ -132,7 +132,7 @@ If that works, you can start implementing your own simulation by modifying the e
    * unit: the "unit" of the KPI values. Its value will be shown in the dashboard widget. E.g. `hours`
    * valueDefinitions: each item will be a defintion of a kpi, potentially having multiple fields in future.
      - valueName: the name of KPI. Its value will be shown in the dashboard widget.
-       Note that the kpi definitions are per country (- Green, - Red, etc). See (known limitations)[#known-limitations]
+       Note that the kpi definitions are per country (- Green, - Red, etc). See [known limitations](#known-limitations)
    
    You can change this later on, when you have implemented your own simulation.
 1. Press on the "Save" button after filling in all the fields.
