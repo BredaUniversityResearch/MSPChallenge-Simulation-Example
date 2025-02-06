@@ -56,6 +56,7 @@ If that works, you can start implementing your own simulation by modifying the e
    uuid value. 
    This server id is used to identify the watchdog server to the
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server).
+   Keep the watchdog running, waiting for connection from the server.
 1. Now you need manually register the watchdog in the [Settings](http://localhost/manager/setting) of the Server Manager web application. For a local
    development setup, the default url is: http://localhost/manager/setting.
    
