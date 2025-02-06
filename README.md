@@ -126,6 +126,8 @@ If that works, you can start implementing your own simulation by modifying the e
      ]
    }
     ```
+   You can change this later on, when you have implemented your own simulation.
+
    Lets go through each input field:
    * simulation_type: it should always be set to value `External` since this is required by the client;
    * categoryName: its value will be shown in the title of the dashboard widget where the external KPI's presented;
@@ -134,8 +136,7 @@ If that works, you can start implementing your own simulation by modifying the e
      - valueName: the name of KPI. Its value will be shown in the dashboard widget.
 
        Note that the kpi definitions are per country (- Green, - Red, etc). See [known limitations](#known-limitations).
-   
-   You can change this later on, when you have implemented your own simulation.
+
 1. Press on the "Save" button after filling in all the fields.
 1. With the watchdog server still running, let's create a game session on the
    [Server manager web application](http://localhost/manager).
