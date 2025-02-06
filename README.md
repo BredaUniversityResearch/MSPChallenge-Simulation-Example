@@ -35,9 +35,9 @@ If you have any questions, please contact us, see the
    [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) (release is March '25) or higher, using docker, see the
    [Installation from scratch](https://community.mspchallenge.info/wiki/Docker_server_installation).
    This guide will assume a Linux environment, but the server can also be run [on Windows](https://community.mspchallenge.info/wiki/Installation_Manual#Option_1:_Fresh_installation_through_Docker_(on_Linux_or_Windows)) using Docker Desktop and Git bash.
-1. Test the server by opening the Server Manager web application in a browser, for a local development setup,
+2. Test the server by opening the Server Manager web application in a browser, for a local development setup,
    the default url is: http://localhost/manager.
-1. Install the [MSP Challenge client](https://github.com/BredaUniversityResearch/MSPChallenge-Client), version
+3. Install the [MSP Challenge client](https://github.com/BredaUniversityResearch/MSPChallenge-Client), version
    [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Client/releases) (release is March '25)
 
 #  Installation
@@ -50,19 +50,19 @@ If that works, you can start implementing your own simulation by modifying the e
 1. Do **not** clone this repository, but download the latest release from the [releases page](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/releases) instead (1st release is March '25) .
    You should create a new repository for your own simulation, and copy the contents of the example repository to your
    own repository.
-1. Unzip the downloaded file to a location of your choice.
-1. Open the csproj file in your favorite IDE. We tested with both JetBrains Rider and Visual Studio.
-1. Let's build and run the project such that it generates a .env.local file on first launch, having a unique SERVER_ID
+2. Unzip the downloaded file to a location of your choice.
+3. Open the csproj file in your favorite IDE. We tested with both JetBrains Rider and Visual Studio.
+4. Let's build and run the project such that it generates a .env.local file on first launch, having a unique SERVER_ID
    uuid value. 
    This server id is used to identify the watchdog server to the
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server).
    Keep the watchdog running, waiting for connection from the server.
-1. Now you need manually register the watchdog in the [Settings](http://localhost/manager/setting) of the Server Manager web application. For a local
+5. Now you need manually register the watchdog in the [Settings](http://localhost/manager/setting) of the Server Manager web application. For a local
    development setup, the default url is: http://localhost/manager/setting.
    
     Note that you need a [MSP Challenge community account](https://auth2.mspchallenge.info/register) in order to start using the software. Get an account [here](https://auth2.mspchallenge.info/register).
-1. On the [Settings](http://localhost/manager/setting) page press the "More details"-icon of the "Watchdog servers" setting.
-1. Add a new Watchdog server by filling in all the fields:
+6. On the [Settings](http://localhost/manager/setting) page press the "More details"-icon of the "Watchdog servers" setting.
+7. Add a new Watchdog server by filling in all the fields:
     - Watchdog server name. This is the name of your watchdog server, for the ***example*** this could be:
       `SunHours Example`.
     - Watchdog server id. This is the SERVER_ID value from the .env.local file. Just copy and paste it here.
@@ -137,8 +137,8 @@ If that works, you can start implementing your own simulation by modifying the e
 
        Note that the kpi definitions are per country (- Green, - Red, etc). See [known limitations](#known-limitations).
 
-1. Press on the "Save" button after filling in all the fields.
-1. With the watchdog server still running, let's create a game session on the
+8. Press on the "Save" button after filling in all the fields.
+9. With the watchdog server still running, let's create a game session on the
    [Server manager web application](http://localhost/manager).
    Choose the "Create new session" button. A pop-up window opens and you need to fill-in the following fields:
    - Session Name: `NS`
@@ -151,37 +151,37 @@ If that works, you can start implementing your own simulation by modifying the e
    - Player password. Just leave this field empty.
   
    More information on create a game session can be found on the ["Setting up your own server"-page](https://community.mspchallenge.info/wiki/Setting_up_your_own_server).
-1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. After session creation, it should end up in state "setup". And you will see that the server connects to your watchdog service, its console output should show something like:
-   ```text
-   Setting target month to -1
-   Setting target game state to Setup
-   Exiting AwaitingSetup state
-   Transitioned from AwaitingSetup to Setup via SetupGame
-   Entering Setup state
-   Current state: Setup
-   Found layer with ID=9, Name=NS_EEZ, GeoType=polygon.
-   Retrieved additional data for Layer with id 9 having 0 layer types.
-   Retrieved geometry for layer with id 9 having 9 layer objects.
-   Layer object with ID=558, Type=7.
-   Layer object with ID=559, Type=0.
-   Layer object with ID=560, Type=1.
-   Layer object with ID=561, Type=5.
-   Layer object with ID=562, Type=2.
-   Layer object with ID=563, Type=4.
-   Layer object with ID=564, Type=4.
-   Layer object with ID=565, Type=3.
-   Layer object with ID=566, Type=6.
-   Exiting Setup state
-   Transitioned from Setup to AwaitingNextMonth via FinishedSetup
-   Entering AwaitingNextMonth state
-   Current state: AwaitingNextMonth
-   ```
-1. Congratulations, you have successfully registered your external watchdog server to the
-   [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
-   Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
-   - For playing with the ***example*** simulation, check the [Usage](#usage) section.
-   - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
-     understand the structure of the program.
+10. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. After session creation, it should end up in state "setup". And you will see that the server connects to your watchdog service, its console output should show something like:
+    ```text
+    Setting target month to -1
+    Setting target game state to Setup
+    Exiting AwaitingSetup state
+    Transitioned from AwaitingSetup to Setup via SetupGame
+    Entering Setup state
+    Current state: Setup
+    Found layer with ID=9, Name=NS_EEZ, GeoType=polygon.
+    Retrieved additional data for Layer with id 9 having 0 layer types.
+    Retrieved geometry for layer with id 9 having 9 layer objects.
+    Layer object with ID=558, Type=7.
+    Layer object with ID=559, Type=0.
+    Layer object with ID=560, Type=1.
+    Layer object with ID=561, Type=5.
+    Layer object with ID=562, Type=2.
+    Layer object with ID=563, Type=4.
+    Layer object with ID=564, Type=4.
+    Layer object with ID=565, Type=3.
+    Layer object with ID=566, Type=6.
+    Exiting Setup state
+    Transitioned from Setup to AwaitingNextMonth via FinishedSetup
+    Entering AwaitingNextMonth state
+    Current state: AwaitingNextMonth
+    ```
+11. Congratulations, you have successfully registered your external watchdog server to the
+    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
+    Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
+    - For playing with the ***example*** simulation, check the [Usage](#usage) section.
+    - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
+      understand the structure of the program.
 
 # Usage
 
@@ -199,11 +199,11 @@ To view the KPIs, follow these steps:
 1. You need to open the dashboard in the client by pressing the "Dashboard" button on the left side menu.
 
    !["Open the dashboard"-button](README-source/open-the-dashboard.png)
-1. On the dashboard, choose the "Other"-category button (the globe) in the top menu.
+2. On the dashboard, choose the "Other"-category button (the globe) in the top menu.
    In the image below, it has been selected, and it is colored orange:
 
    ![Choose the category "Other"](README-source/kpi-dashboard-category-other.png)
-1. Now you should see the dashboard widget showing the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
+3. Now you should see the dashboard widget showing the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
 
 ![Sun hours KPIs](README-source/kpi-sun-hours.png)
 
@@ -404,17 +404,17 @@ Most of the calls require an api access token, which will be handled by the Prog
 
 So, if you want to test an api call using the Swagger UI, start with these steps first:
 1. On the top there is a "sessionId" field, fill in the id of the game session as mention on the [Server Manager web application](http://localhost/manager).
-1. In the "User" section, select /api/User/RequestSession to uncollapse it.
-1. Press the "Try it out" button.
-1. Fill in the required fields. You can leave build_timestamp and country_id to the default values.
+2. In the "User" section, select /api/User/RequestSession to uncollapse it.
+3. Press the "Try it out" button.
+4. Fill in the required fields. You can leave build_timestamp and country_id to the default values.
    Fill-in your [community](https://community.mspchallenge.info) username and set the "country password" to the Admin
    password you set when creating the game session.
-1. Press the "Execute" button.
-1. The response is a json object with a payload field. Inside the payload there is a field called "api_access_token".
+5. Press the "Execute" button.
+6. The response is a json object with a payload field. Inside the payload there is a field called "api_access_token".
     Copy this value into the clipboard. Only select the characters inside the quotes, not the quotes themselves.
-1. On the top right press the "Authorize" button.
-1. In the "Value" field, paste the api access token and press the "Authorize" button, followed by the "Close" button.
-1. Now you can test any api call, and it will use the api access token you provided.
+7. On the top right press the "Authorize" button.
+8. In the "Value" field, paste the api access token and press the "Authorize" button, followed by the "Close" button.
+9. Now you can test any api call, and it will use the api access token you provided.
 
 One of the [HttpPost](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/48714bf665254fe0e9846b37f3710b814522b7fc/Communication/MspClient.cs#L79)
 calls of the MspClient is templated and expects a type to be returned. E.g.
