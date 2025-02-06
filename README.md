@@ -10,7 +10,7 @@ The watchdog service is responsible for managing simulations, the built-in simul
 [Shipping](https://community.mspchallenge.info/wiki/Shipping_simulation_(SEL)).
 
 These simulations are part of, and distributed with every release of the MSP Challenge server and platform.
-From version [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (it as upcoming release in March '25) it will be possible to
+From version [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (its release is in March '25) it will be possible to
 extend the number of simulations by external watchdog services, which can be registered to a running server.
 After monthly simulations runs, KPI values will be reported to the server, shown to the user on the client.
 This repository contains an ***example*** of such an external watchdog service, which "simulates" and reports the
@@ -440,7 +440,7 @@ If the server api is lacking a call you need, you can request it on the [Github 
 
 # Known limitations
 
-
+* 
 
 # License
 
