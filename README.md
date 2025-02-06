@@ -10,7 +10,7 @@ The watchdog service is responsible for managing simulations, the built-in simul
 [Shipping](https://community.mspchallenge.info/wiki/Shipping_simulation_(SEL)).
 
 These simulations are part of, and distributed with every release of the MSP Challenge server and platform.
-From version [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (release is March '25) it will be possible to
+From version [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (it as upcoming release in March '25) it will be possible to
 extend the number of simulations by external watchdog services, which can be registered to a running server.
 After monthly simulations runs, KPI values will be reported to the server, shown to the user on the client.
 This repository contains an ***example*** of such an external watchdog service, which "simulates" and reports the
@@ -56,6 +56,7 @@ If that works, you can start implementing your own simulation by modifying the e
    uuid value. 
    This server id is used to identify the watchdog server to the
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server).
+   Keep the watchdog running, waiting for connection from the server.
 1. Now you need manually register the watchdog in the [Settings](http://localhost/manager/setting) of the Server Manager web application. For a local
    development setup, the default url is: http://localhost/manager/setting.
    
@@ -66,12 +67,11 @@ If that works, you can start implementing your own simulation by modifying the e
       `SunHours Example`.
     - Watchdog server id. This is the SERVER_ID value from the .env.local file. Just copy and paste it here.
     - Scheme. For dev purposes, you can use `http`.
-    - Token: `example`
     - Address. This is the address where the watchdog server is running. For a local development setup, where the
       watchdog server is running on the same machine as docker, you can use `host.docker.internal`.
     - Port. This is the port where the watchdog server is running. For the ***example*** this is `5026`.
     - Simulation settings. This is a json object with the settings for the simulation. Basically it holds the KPIs that
-      will be reported to the server, having this structure:
+      will be reported to the server, having this structure below. Please note that the `simulation_type` should always be set to value `External` since this is required by the client.
     ```json
         {
           "simulation_type": "External",
@@ -152,8 +152,7 @@ If that works, you can start implementing your own simulation by modifying the e
    - Player password. Just leave this field empty.
   
    More information on create a game session can be found on the ["Setting up your own server"-page](https://community.mspchallenge.info/wiki/Setting_up_your_own_server).
-1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. 
-   The session created should end up in state "setup", and the watchdog server console output should show something like:
+1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. After session creation, it should end up in state "setup". And you will see that the server connects to your watchdog service, its console output should show something like:
    ```text
    Setting target month to -1
    Setting target game state to Setup
@@ -181,9 +180,9 @@ If that works, you can start implementing your own simulation by modifying the e
 1. Congratulations, you have successfully registered your external watchdog server to the
    [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
    Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
-   - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
-     understand the structure of the program. Then, 
    - For playing with the ***example*** simulation, check the [Usage](#usage) section.
+   - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
+     understand the structure of the program.
 
 # Usage
 
@@ -196,6 +195,8 @@ For a local development setup, just use `localhost` as the server address.
 To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in
 the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
 
+todo: explain briefy how to start the monthly simulation. And that you have to wait for each monthly simulation for receiving/showing KPI's in the client.
+
 To view the KPIs, follow these steps:
 1. You need to open the dashboard in the client by pressing the "Dashboard" button on the left side menu.
 
@@ -207,6 +208,8 @@ To view the KPIs, follow these steps:
 1. Now you should see the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
 
 ![Sun hours KPIs](README-source/kpi-sun-hours.png)
+
+todo: explain the kpi shown per country
 
 # Watchdog program.cs
 
@@ -233,8 +236,6 @@ If you need to handle multiple game sessions, you will need to:
   
   (it would also require each instance to only accept a specific game session - see program.OnQuestionAcceptSetupEvent -
   otherwise a single game session would be simulated by multiple instances, potentially causing duplicate KPIs)
-* [request this feature](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues) and wait for it to be implemented in the example's ProgramManager class;
-* modify the program yourself to handle this.
 
 The ProgramManager class is the main class used, it handles:
 * creating an initial .env.local file with a unique SERVER_ID uuid value;
