@@ -438,9 +438,54 @@ Note that the Swagger UI also provides the json schema of the data models, which
 
 If the server api is lacking a call you need, you can request it on the [Github repository](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues).
 
+# Testing using .http files
+
+JetBrains Rider supports .http files through its built-in HTTP client. This allows you to create and execute HTTP
+requests directly from the IDE. You can find more information about this feature in the
+[JetBrains documentation](https://www.jetbrains.com/help/idea/http-client-in-product-code-editor.html).
+
+In the folder [.http](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/tree/main/.http)
+you can find some example .http files, which you can use to test the watchdog server. You can run these files by
+clicking on the "Run all requests in file"-button that appears when you open the file in Rider.
+Let me go through the different available .http files, which should be executed in order:
+
+* [1.Watchdog-UpdateState-Setup.http](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/tree/main/.http/1.Watchdog-UpdateState-Setup.http):
+  This file contains a request to update the state of the watchdog server to given game state change to "Setup", which is month -1.
+
+  Do not forget to set the correct values for variables:
+  - @MSP_Server_Api_Address, the address of the server api incl. the session id, e.g. `http://localhost/1/` or `https://server.mspchallenge.info/1/`
+    
+    (the default `http://mitmproxy:8080/1/` is the default local development setup and allows you to monitor server network traffic on http://localhost:8081);
+  - @Username, for request an api access token using /api/User/RequestToken;
+  - @MSPChallenge_Simulation_HostAddress, the local address of the watchdog server incl, port, e.g. `http://localhost:5026/`;
+  - @GameSessionToken, token of the game session, needed to identify the connecting game session. You can set this to any string.
+* [2.Watchdog-UpdateState-Simulate.http](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/.http/2.Watchdog-UpdateState-Simulate.http):
+  This file contains a request to update the state of the watchdog server to given game state change to "Pause", which is month 0.
+  This will trigger the first monthly simulation.
+
+  Do not forget to set the correct values for those variables. The value of @GameSessionToken should match the value set in
+  the previous file, otherwise the watchdog server will reject the request with a 405 Method Not Allowed.
+
+* [3.Watchdog-SetMonth.http](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/.http/3.Watchdog-SetMonth.http):
+  This file contains a request to simulate to a specific month as given by the variable @TargetMonth (default=4).
+  You can repeat this request to simulate towards different target months.
+
+  Again, do not forget to set the correct values for all the variables.
+* [4.Watchdog-UpdateState-End.http](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/main/.http/4.Watchdog-UpdateState-End.http):
+  This file contains a request to update the state of the watchdog server to given game state change to "End".
+  The default is month 4 as given by variable @TargetMonth.
+  This will reset the watchdog to its initial state, awaiting a new session and its setup.
+  
+  Again, do not forget to set the correct values for all the variables.
+
 # Known limitations
 
-* 
+* The server only supports showing non-country specific external KPIs. This means that the country field of the KPI
+  object should be set to -1.
+  See [here](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/blob/15b2a2092fdfa060ea550dc40072fb0836ae43ef/Program.cs#L172).
+  This is because the server does not yet support showing country specific external KPIs.
+
+  This limitation will be removed in future versions of the msp challenge platform. The issue has been reported [here](https://github.com/BredaUniversityResearch/MSPChallenge-Client/issues/261).
 
 # License
 
