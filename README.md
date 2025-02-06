@@ -152,8 +152,7 @@ If that works, you can start implementing your own simulation by modifying the e
    - Player password. Just leave this field empty.
   
    More information on create a game session can be found on the ["Setting up your own server"-page](https://community.mspchallenge.info/wiki/Setting_up_your_own_server).
-1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. 
-   The session created should end up in state "setup", and the watchdog server console output should show something like:
+1. Press the "Create session" button. This will take a while, since the server is downloading data from the geoserver service. After session creation, it should end up in state "setup". And you will see that the server connects to your watchdog service, its console output should show something like:
    ```text
    Setting target month to -1
    Setting target game state to Setup
