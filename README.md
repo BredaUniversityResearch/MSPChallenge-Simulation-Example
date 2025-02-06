@@ -203,11 +203,11 @@ To view the KPIs, follow these steps:
    In the image below, it has been selected, and it is colored orange:
 
    ![Choose the category "Other"](README-source/kpi-dashboard-category-other.png)
-1. Now you should see the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
+1. Now you should see the dashboard widget shwoing the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
 
 ![Sun hours KPIs](README-source/kpi-sun-hours.png)
 
-todo: explain the kpi shown per country
+So for each country a KPI value is shown per month.
 
 # Watchdog program.cs
 
