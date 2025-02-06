@@ -71,19 +71,17 @@ If that works, you can start implementing your own simulation by modifying the e
       watchdog server is running on the same machine as docker, you can use `host.docker.internal`.
     - Port. This is the port where the watchdog server is running. For the ***example*** this is `5026`.
     - Simulation settings. This is a json object with the settings for the simulation. Basically it holds the KPIs that
-      will be reported to the server, having this structure below. Please note that the `simulation_type` should always be set to value `External` since this is required by the client.
+      will be reported to the server, having this structure below.
     ```json
         {
           "simulation_type": "External",
           "kpis": [
             {
               "categoryName": "...kpi category here...",
-              "categoryColor": "...hex color here...",
               "unit": "...kpi unit here...",
               "valueDefinitions": [
                 {
-                  "valueName": "...kpi name here...",
-                  "valueColor": "...hex color here..."
+                  "valueName": "...kpi name here..."
                 }
               ]
             }
@@ -97,46 +95,45 @@ If that works, you can start implementing your own simulation by modifying the e
      "kpis": [
        {
          "categoryName": "SunHours",
-         "categoryColor": "#590a3f",
-         "unit": "hour",
+         "unit": "hours",
          "valueDefinitions": [
            {
-             "valueName": "SunHours Green",
-             "valueColor": "#007A03"
+             "valueName": "SunHours Green"
            },
            {
-             "valueName": "SunHours Red",
-             "valueColor": "#DC2D2A"
+             "valueName": "SunHours Red"
            },
            {
-             "valueName": "SunHours Pink",
-             "valueColor": "#E252BB"
+             "valueName": "SunHours Pink"
            },
            {
-             "valueName": "SunHours Blue",
-             "valueColor": "#4778F8"
+             "valueName": "SunHours Blue"
            },
            {
-             "valueName": "SunHours Orange",
-             "valueColor": "#FF7B2C"
+             "valueName": "SunHours Orange"
            },
            {
-             "valueName": "SunHours Navy",
-             "valueColor": "#0B2B81"
+             "valueName": "SunHours Navy"
            },
            {
-             "valueName": "SunHours Yellow",
-             "valueColor": "#FECC2F"
+             "valueName": "SunHours Yellow"
            },
            {
-             "valueName": "SunHours Purple",
-             "valueColor": "#932385"
+             "valueName": "SunHours Purple"
            }
          ]
        }
      ]
    }
     ```
+   Lets go through each input field:
+   * simulation_type: it should always be set to value `External` since this is required by the client;
+   * categoryName: its value will be shown in the title of the dashboard widget where the external KPI's presented;
+   * unit: the "unit" of the KPI values. Its value will be shown in the dashboard widget. E.g. `hours`
+   * valueDefinitions: each item will be a defintion of a kpi, potentially having multiple fields in future.
+     - valueName: the name of KPI. Its value will be shown in the dashboard widget.
+       Note that the kpi definitions are per country (- Green, - Red, etc). See (known limitations)[#known-limitations]
+   
    You can change this later on, when you have implemented your own simulation.
 1. Press on the "Save" button after filling in all the fields.
 1. With the watchdog server still running, let's create a game session on the
@@ -194,8 +191,7 @@ For a local development setup, just use `localhost` as the server address.
 
 To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in
 the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
-
-todo: explain briefy how to start the monthly simulation. And that you have to wait for each monthly simulation for receiving/showing KPI's in the client.
+And how to manage the simulated time as an session administrator [here](https://community.mspchallenge.info/wiki/Administrator_features).
 
 To view the KPIs, follow these steps:
 1. You need to open the dashboard in the client by pressing the "Dashboard" button on the left side menu.
@@ -439,6 +435,10 @@ the HttpPost call.
 Note that the Swagger UI also provides the json schema of the data models, which can be used to create the data model classes.
 
 If the server api is lacking a call you need, you can request it on the [Github repository](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/issues).
+
+# Known limitations
+
+
 
 # License
 
