@@ -195,6 +195,8 @@ For a local development setup, just use `localhost` as the server address.
 To learn more about how to run simulations from the client, I advise you to go through the tutorial which is included in
 the client itself, also explained [here](https://community.mspchallenge.info/wiki/Basic_features).
 
+todo: explain briefy how to start the monthly simulation. And that you have to wait for each monthly simulation for receiving/showing KPI's in the client.
+
 To view the KPIs, follow these steps:
 1. You need to open the dashboard in the client by pressing the "Dashboard" button on the left side menu.
 
@@ -206,6 +208,8 @@ To view the KPIs, follow these steps:
 1. Now you should see the KPIs for the sun hours simulation, eg. when the simulation has run for a year or more:
 
 ![Sun hours KPIs](README-source/kpi-sun-hours.png)
+
+todo: explain the kpi shown per country
 
 # Watchdog program.cs
 
