@@ -10,7 +10,7 @@ The watchdog service is responsible for managing simulations, the built-in simul
 [Shipping](https://community.mspchallenge.info/wiki/Shipping_simulation_(SEL)).
 
 These simulations are part of, and distributed with every release of the MSP Challenge server and platform.
-From version [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (its release is in March '25) it will be possible to
+From version [5.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) onwards (its release is in March '25) it will be possible to
 extend the number of simulations by external watchdog services, which can be registered to a running server.
 After monthly simulations runs, KPI values will be reported to the server, shown to the user on the client.
 This repository contains an ***example*** of such an external watchdog service, which "simulates" and reports the
@@ -32,13 +32,13 @@ If you have any questions, please contact us, see the
 
 ## Pre-requisites
 1. Install the [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), version
-   [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) (release is March '25) or higher, using docker, see the
+   [5.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) (release is March '25) or higher, using docker, see the
    [Installation from scratch](https://community.mspchallenge.info/wiki/Docker_server_installation).
    This guide will assume a Linux environment, but the server can also be run [on Windows](https://community.mspchallenge.info/wiki/Installation_Manual#Option_1:_Fresh_installation_through_Docker_(on_Linux_or_Windows)) using Docker Desktop and Git bash.
 2. Test the server by opening the Server Manager web application in a browser, for a local development setup,
    the default url is: http://localhost/manager.
 3. Install the [MSP Challenge client](https://github.com/BredaUniversityResearch/MSPChallenge-Client), version
-   [5.0.1](https://github.com/BredaUniversityResearch/MSPChallenge-Client/releases) (release is March '25)
+   [5.1](https://github.com/BredaUniversityResearch/MSPChallenge-Client/releases) (release is March '25)
 
 #  Installation
 
@@ -47,7 +47,7 @@ registering it to the [MSP Challenge server](https://github.com/BredaUniversityR
 a test run with some sun hours simulation.
 If that works, you can start implementing your own simulation by modifying the example code.
 
-1. Do **not** clone this repository, but download the latest release from the [releases page](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/releases) instead (1st release is March '25) .
+1. Do **not** clone this repository, but download the latest release from the [releases page](https://github.com/BredaUniversityResearch/MSPChallenge-Simulation-Example/releases) instead.
    You should create a new repository for your own simulation, and copy the contents of the example repository to your
    own repository.
 2. Unzip the downloaded file to a location of your choice.
