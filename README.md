@@ -33,8 +33,7 @@ If you have any questions, please contact us, see the
 ## Pre-requisites
 1. Install the [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), version
    [5.1](https://github.com/BredaUniversityResearch/MSPChallenge-Server/tags) (release is March '25) or higher, using docker, see the
-   [Installation from scratch](https://community.mspchallenge.info/wiki/Docker_server_installation).
-   This guide will assume a Linux environment, but the server can also be run [on Windows](https://community.mspchallenge.info/wiki/Installation_Manual#Option_1:_Fresh_installation_through_Docker_(on_Linux_or_Windows)) using Docker Desktop and Git bash.
+   [Installation](https://github.com/BredaUniversityResearch/MSPChallenge-Server?tab=readme-ov-file#installation).
 2. Test the server by opening the Server Manager web application in a browser, for a local development setup,
    the default url is: http://localhost/manager.
 3. Install the [MSP Challenge client](https://github.com/BredaUniversityResearch/MSPChallenge-Client), version
