@@ -40,14 +40,17 @@ public class ProgramManager()
     private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
     private const int RefreshApiAccessTokenFrequencySec = 900;
     private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
-    
-    // Define public events
-    public event Func<GameSessionInfo, List<SimulationDefinition>>? OnSimulationDefinitionsEvent;
-    public event Func<GameSessionInfo, bool>? OnQuestionAcceptSetupEvent;
-    public event Func<Task>? OnSetupEvent;
-    public event Func<int /* month */, Task>? OnSimulationStateEnteredEvent;
+
+    //Session data
+    private SimulationPersistentData m_persistentData;
+
+	// Define public events
+	public event Func<GameSessionInfo, SimulationPersistentData, List<SimulationDefinition>>? OnSimulationDefinitionsEvent;
+    public event Func<GameSessionInfo, SimulationPersistentData, bool>? OnQuestionAcceptSetupEvent;
+    public event Func<SimulationPersistentData, Task>? OnSetupEvent;
+    public event Func<int /* month */, SimulationPersistentData, Task>? OnSimulationStateEnteredEvent;
     public event Func<Task<List<KPI>>>? OnReportStateEnteredEvent;
-    public event Action<double /* deltaTimeSec */>? OnTickEvent;
+    public event Action<double /* deltaTimeSec */, SimulationPersistentData>? OnTickEvent;
 
     public ProgramManager(string[] args) : this()
     {
@@ -59,7 +62,7 @@ public class ProgramManager()
         OnTickEvent += RefreshApiAccessToken;
     }
 
-    private void RefreshApiAccessToken(double deltaTimeSec)
+    private void RefreshApiAccessToken(double deltaTimeSec, SimulationPersistentData persistentData)
     {
         if (m_mspClient == null) return; // we need the MSP client to validate the api access token
         m_refreshApiAccessTokenTimeLeftSec -= deltaTimeSec;
@@ -87,7 +90,7 @@ public class ProgramManager()
         });        
     }
 
-    private void ValidateWatchdogToken(double deltaTimeSec)
+    private void ValidateWatchdogToken(double deltaTimeSec, SimulationPersistentData persistentData)
     {
         if (m_gameSessionToken == null) return; // we need a game session token to poll the token
         if (m_mspClient == null) return; // we need the MSP client to poll the token
@@ -129,7 +132,7 @@ public class ProgramManager()
     private Task GetSimulationDefinitions()
     {
         if (OnSimulationDefinitionsEvent == null) return Task.CompletedTask;
-        m_simulationDefinitions = OnSimulationDefinitionsEvent(m_gameSessionInfo!);
+        m_simulationDefinitions = OnSimulationDefinitionsEvent(m_gameSessionInfo!, m_persistentData);
         var nameValueCollection = new NameValueCollection();
         foreach (var simulationDefinition in m_simulationDefinitions)
         {
@@ -144,7 +147,7 @@ public class ProgramManager()
     {
         GetMspClient().SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
         GetSimulationDefinitions().ContinueWithOnSuccess(_ => 
-            OnSetupEvent != null ? OnSetupEvent.Invoke() : Task.CompletedTask
+            OnSetupEvent != null ? OnSetupEvent.Invoke(m_persistentData) : Task.CompletedTask
         ).Unwrap().ContinueWith(task => {
             if (task.IsFaulted)
             {
@@ -162,7 +165,7 @@ public class ProgramManager()
     private void OnSimulationStateEntered()
     {
         // eg. do simulation calculations
-        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth).ContinueWith(_ => {
+        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth, m_persistentData).ContinueWith(_ => {
                 m_programStateMachine?.Fire(Trigger.FinishedSimulation);
             });
     }
@@ -170,7 +173,7 @@ public class ProgramManager()
     private void OnReportStateEntered()
     {
         // eg. submit kpi's to MSP API
-        OnReportStateEnteredEvent?.Invoke().ContinueWithOnSuccess(reportKpisTask =>
+        OnReportStateEnteredEvent?.Invoke(m_persistentData).ContinueWithOnSuccess(reportKpisTask =>
         {
             var kpis = reportKpisTask.Result;
             return SubmitKpis(kpis);
@@ -422,7 +425,7 @@ public class ProgramManager()
         var currentTickTime = DateTime.Now;
         var deltaTime = currentTickTime - m_lastTickTime;
         m_lastTickTime = currentTickTime;
-        OnTickEvent?.Invoke(deltaTime.TotalSeconds);
+        OnTickEvent?.Invoke(deltaTime.TotalSeconds, m_persistentData);
         
         if (
             // If game state is Setup the state machine goes to Setup state as well
