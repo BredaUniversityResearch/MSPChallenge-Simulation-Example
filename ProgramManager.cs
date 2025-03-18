@@ -17,18 +17,13 @@ namespace MSPChallenge_Simulation;
 public class ProgramManager()
 {
     private const int DefaultTickRateMs = 1000; // 1000ms = 1 second
-    private const int DefaultMonth = -1; // setup month
     private int m_tickRateMs = DefaultTickRateMs;
+    private const int PollTokenFrequencySec = 60;
+    private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
+    private const int RefreshApiAccessTokenFrequencySec = 900;
+    private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
+    
     private readonly string[] m_args = [];
-    private int m_currentMonth = DefaultMonth;
-    private int m_targetMonth = DefaultMonth;
-    private EGameState? m_currentGameState;
-    private EGameState? m_targetGameState = EGameState.Setup;
-    private DateTime m_lastTickTime = DateTime.Now;
-    private bool m_setupAccepted = false;
-    private string? m_gameSessionToken = null;
-    private GameSessionInfo? m_gameSessionInfo = null;
-    private List<SimulationDefinition>? m_simulationDefinitions = null;
 
     // created upon 
     private ProgramStateMachine? m_programStateMachine;
@@ -36,13 +31,8 @@ public class ProgramManager()
     // create upon the first UpdateState request
     private MspClient? m_mspClient;
 
-    private const int PollTokenFrequencySec = 60;
-    private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
-    private const int RefreshApiAccessTokenFrequencySec = 900;
-    private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
-
     //Session data
-    private SimulationPersistentData m_persistentData;
+    private Dictionary<string, SimulationPersistentData> m_sessionPersistentData; //Unique session tokens as keys
 
 	// Define public events
 	public event Func<GameSessionInfo, SimulationPersistentData, List<SimulationDefinition>>? OnSimulationDefinitionsEvent;
@@ -132,7 +122,7 @@ public class ProgramManager()
     private Task GetSimulationDefinitions()
     {
         if (OnSimulationDefinitionsEvent == null) return Task.CompletedTask;
-        m_simulationDefinitions = OnSimulationDefinitionsEvent(m_gameSessionInfo!, m_persistentData);
+        m_simulationDefinitions = OnSimulationDefinitionsEvent(m_gameSessionInfo!, m_sessionPersistentData);
         var nameValueCollection = new NameValueCollection();
         foreach (var simulationDefinition in m_simulationDefinitions)
         {
@@ -147,7 +137,7 @@ public class ProgramManager()
     {
         GetMspClient().SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
         GetSimulationDefinitions().ContinueWithOnSuccess(_ => 
-            OnSetupEvent != null ? OnSetupEvent.Invoke(m_persistentData) : Task.CompletedTask
+            OnSetupEvent != null ? OnSetupEvent.Invoke(m_sessionPersistentData) : Task.CompletedTask
         ).Unwrap().ContinueWith(task => {
             if (task.IsFaulted)
             {
@@ -165,7 +155,7 @@ public class ProgramManager()
     private void OnSimulationStateEntered()
     {
         // eg. do simulation calculations
-        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth, m_persistentData).ContinueWith(_ => {
+        OnSimulationStateEnteredEvent?.Invoke(m_currentMonth, m_sessionPersistentData).ContinueWith(_ => {
                 m_programStateMachine?.Fire(Trigger.FinishedSimulation);
             });
     }
@@ -173,7 +163,7 @@ public class ProgramManager()
     private void OnReportStateEntered()
     {
         // eg. submit kpi's to MSP API
-        OnReportStateEnteredEvent?.Invoke(m_persistentData).ContinueWithOnSuccess(reportKpisTask =>
+        OnReportStateEnteredEvent?.Invoke(m_sessionPersistentData).ContinueWithOnSuccess(reportKpisTask =>
         {
             var kpis = reportKpisTask.Result;
             return SubmitKpis(kpis);
@@ -425,7 +415,7 @@ public class ProgramManager()
         var currentTickTime = DateTime.Now;
         var deltaTime = currentTickTime - m_lastTickTime;
         m_lastTickTime = currentTickTime;
-        OnTickEvent?.Invoke(deltaTime.TotalSeconds, m_persistentData);
+        OnTickEvent?.Invoke(deltaTime.TotalSeconds, m_sessionPersistentData);
         
         if (
             // If game state is Setup the state machine goes to Setup state as well
