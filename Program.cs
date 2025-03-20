@@ -29,14 +29,14 @@ program.OnReportStateEnteredEvent += () => Task.FromResult(kpis);
 program.Run();
 return;
 
-List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSessionInfo, SimulationPersistentData persistentData)
+List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSessionInfo, SimulationSession persistentData)
 {
     // here you can decide based on the game session info data what simulations you want to run
     // e.g. a watchdog could have multiple simulations, but you only want to run some of them
     return [new SimulationDefinition("SandExtraction", "1.0.0")];
 }
 
-bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo, SimulationPersistentData persistentData)
+bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo, SimulationSession persistentData)
 {
     // here you can decide based on the game session info data if you want to accept this game session or not
     return "North_OR_ELSE" == gameSessionInfo.config_file_name; // the only one with layer tags
@@ -44,7 +44,7 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo, SimulationPersi
 
 // Once connected to the server, start setup.
 //   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
-Task Setup(SimulationPersistentData persistentData)
+Task Setup(SimulationSession persistentData)
 {
     var values = new NameValueCollection
     {
@@ -103,7 +103,7 @@ Task Setup(SimulationPersistentData persistentData)
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
-Task OnSimulationStateEnteredEvent(int month, SimulationPersistentData persistentData) 
+Task OnSimulationStateEnteredEvent(SimulationSession persistentData) 
 {
     return program.GetMspClient().HttpPost<YearMonthObject>(
     "/api/Game/GetActualDateForSimulatedMonth",
@@ -123,7 +123,7 @@ Task OnSimulationStateEnteredEvent(int month, SimulationPersistentData persisten
 
 
 //TODO: Taken from Imagesharp reference, adapt to actual functionality
-void CalculatateKPIsForMonth(int month, SimulationPersistentData persistentData)
+void CalculatateKPIsForMonth(int month, SimulationSession persistentData)
 {
 	using Image<Rgba32> image = Image.Load<Rgba32>("my_file.png");
 	image.ProcessPixelRows(accessor =>
