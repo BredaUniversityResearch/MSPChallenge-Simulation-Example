@@ -22,21 +22,21 @@ var program = new ProgramManager(args);
 var kpis = new List<KPI>();
 
 
-program.OnSimulationDefinitionsEvent += OnSimulationDefinitionsEvent;
 program.OnQuestionAcceptSetupEvent += OnQuestionAcceptSetupEvent;
+program.GetSimulationDefinitions += OnSimulationDefinitionsEvent;
 program.OnSetupEvent += Setup;
-program.OnReportStateEnteredEvent += () => Task.FromResult(kpis);
+program.OnSimulationStateEnteredEvent += OnSimulationStateEnteredEvent;
 program.Run();
 return;
 
-List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSessionInfo, SimulationSession persistentData)
+List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSessionInfo)
 {
     // here you can decide based on the game session info data what simulations you want to run
     // e.g. a watchdog could have multiple simulations, but you only want to run some of them
     return [new SimulationDefinition("SandExtraction", "1.0.0")];
 }
 
-bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo, SimulationSession persistentData)
+bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 {
     // here you can decide based on the game session info data if you want to accept this game session or not
     return "North_OR_ELSE" == gameSessionInfo.config_file_name; // the only one with layer tags
@@ -44,13 +44,13 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo, SimulationSessi
 
 // Once connected to the server, start setup.
 //   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
-Task Setup(SimulationSession persistentData)
+Task Setup(SimulationSession session)
 {
     var values = new NameValueCollection
     {
         { "layer_tags", "EEZ,Polygon" }
     };
-    return program.GetMspClient().HttpPost<List<LayerMeta>>(
+    return session.MSPClient.HttpPost<List<LayerMeta>>(
 	   API_GET_LAYER_LIST, values
     ).ContinueWithOnSuccess(layerListTask =>
     {
@@ -60,7 +60,7 @@ Task Setup(SimulationSession persistentData)
         var layer = layerListTask.Result[0];
         Console.WriteLine(
             $"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
-        return (layer, program.GetMspClient().HttpPost<LayerMeta>(
+        return (layer, session.MSPClient.HttpPost<LayerMeta>(
 			API_GET_LAYER_META,
             new NameValueCollection
             {
@@ -76,7 +76,7 @@ Task Setup(SimulationSession persistentData)
         }
         Console.WriteLine(
             $"Retrieved additional data for Layer with id {layer.layer_id} having {layer.layer_type.Count} layer types.");
-        return (layerWithMeta, program.GetMspClient().HttpPost<List<SubEntityObject>>(
+        return (layerWithMeta, session.MSPClient.HttpPost<List<SubEntityObject>>(
 			API_GET_LAYER_VECTOR,
             new NameValueCollection
             {
@@ -97,15 +97,13 @@ Task Setup(SimulationSession persistentData)
         {
             Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
         }
-
-        program.OnSimulationStateEnteredEvent += OnSimulationStateEnteredEvent;
     });
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
-Task OnSimulationStateEnteredEvent(SimulationSession persistentData) 
+Task OnSimulationStateEnteredEvent(SimulationSession session) 
 {
-    return program.GetMspClient().HttpPost<YearMonthObject>(
+    return session.MSPClient.HttpPost<YearMonthObject>(
     "/api/Game/GetActualDateForSimulatedMonth",
         new NameValueCollection
         {
@@ -117,13 +115,13 @@ Task OnSimulationStateEnteredEvent(SimulationSession persistentData)
         {
             throw new Exception($"Could not find actual date for simulated month {month}.");
         }
-		CalculatateKPIsForMonth(month, persistentData);
+		CalculatateKPIsForMonth(month, session);
     });
 }
 
 
 //TODO: Taken from Imagesharp reference, adapt to actual functionality
-void CalculatateKPIsForMonth(int month, SimulationSession persistentData)
+void CalculatateKPIsForMonth(int month, SimulationSession session)
 {
 	using Image<Rgba32> image = Image.Load<Rgba32>("my_file.png");
 	image.ProcessPixelRows(accessor =>

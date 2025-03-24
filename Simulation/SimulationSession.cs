@@ -11,6 +11,7 @@ using MSPChallenge_Simulation.Simulation.Exceptions;
 using MSPChallenge_Simulation.StateMachine;
 using Newtonsoft.Json;
 using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
+using Microsoft.AspNetCore.Http;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -18,6 +19,8 @@ public class SimulationSession
 {
 	const string API_GET_WATCHDOG_TOKEN = "/api/Simulation/GetWatchdogTokenForServer";
 	const string API_GET_TOKEN = "/api/User/RequestToken";
+	const string API_SET_KPI = "/api/kpi/BatchPost"; //Sets kpis in "kpiValues" list
+	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert"; //Sets simulation definitions used for session
 
 	private const int DefaultMonth = -1; // setup month
 	private const int PollTokenFrequencySec = 60;
@@ -31,28 +34,39 @@ public class SimulationSession
 	private EGameState? m_targetGameState = EGameState.Setup;
 
 	private string m_gameSessionToken;
-	private GameSessionInfo? m_gameSessionInfo = null;
-	private List<SimulationDefinition>? m_simulationDefinitions = null;
+	private GameSessionInfo m_gameSessionInfo;
 	private ProgramStateMachine? m_programStateMachine;
-	private MspClient? m_mspClient;
+	private MspClient m_mspClient;
+	private List<SimulationDefinition>? m_simulationDefinitions = null;
 
 	public LayerMeta m_bathymetryMeta;
 	public LayerMeta m_sandDepthMeta;
 	public LayerMeta m_pitsMeta;
+	public List<KPI> m_kpis = new List<KPI>();
 
 	public int CurrentMonth => m_currentMonth;
+	public MspClient MSPClient => m_mspClient;
+	public GameSessionInfo GameSessionInfo => m_gameSessionInfo;
+	public string SessionToken => m_gameSessionToken;
 
-	Action<SimulationSession> m_onSetupStateEntered, m_onSimulationStateEntered, m_onReportStateEntered;
+	Action<SimulationSession> m_onSetupStateEntered, m_onSimulationStateEntered, m_onSessionClose;
 
-	public SimulationSession(string a_gameSessionToken, string a_serverId, string a_gameSessionApi, ApiToken a_apiAccessToken, ApiToken a_apiAccessRenewToken,
+	public SimulationSession(
+		string a_gameSessionToken, 
+		string a_serverId, 
+		string a_gameSessionApi, 
+		ApiToken a_apiAccessToken, 
+		ApiToken a_apiAccessRenewToken,
+		GameSessionInfo a_gameSessionInfo,
 		Action<SimulationSession> a_onSetupStateEntered,
 		Action<SimulationSession> a_onSimulationStateEntered,
-		Action<SimulationSession> a_onReportStateEntered)
+		Action<SimulationSession> a_onSessionClose)
 	{
 		m_gameSessionToken = a_gameSessionToken;
 		m_onSetupStateEntered = a_onSetupStateEntered;
 		m_onSimulationStateEntered = a_onSimulationStateEntered;
-		m_onReportStateEntered = a_onReportStateEntered;
+		m_gameSessionInfo = a_gameSessionInfo;
+		m_onSessionClose = a_onSessionClose;
 
 		m_programStateMachine = new ProgramStateMachine();
 		m_programStateMachine.OnAwaitingSetupStateEnteredEvent += () =>
@@ -63,10 +77,26 @@ public class SimulationSession
 		m_programStateMachine.OnSimulationStateEnteredEvent += OnSimulationStateEntered;
 		m_programStateMachine.OnReportStateEnteredEvent += OnReportStateEntered;
 
-		m_mspClient ??= new MspClient(a_serverId, a_gameSessionApi, a_apiAccessToken.token, a_apiAccessRenewToken.token);
+		m_mspClient = new MspClient(a_serverId, a_gameSessionApi, a_apiAccessToken.token, a_apiAccessRenewToken.token);
 		m_mspClient.SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
+	}
+
+	public void UpdateState(ApiToken a_apiAccessToken, ApiToken a_apiAccessRenewToken, EGameState a_newGameState, int a_targetMonth)
+	{
+		m_mspClient.apiAccessToken = a_apiAccessToken.token;
+		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
+		m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
+		m_targetMonth = a_targetMonth;
+		m_targetGameState = a_newGameState;
+		Console.WriteLine($"State of session {m_gameSessionToken} changed. Setting target month to {m_targetMonth} and state to {m_targetGameState}");
+	}
+
+	public void SetTargetMonth(int a_targetMonth)
+	{
+		m_targetMonth = a_targetMonth;
+		Console.WriteLine($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
 	}
 
 	public void TickSession(double a_deltaTimeSec)
@@ -131,11 +161,11 @@ public class SimulationSession
 					var tokenObj = task.Result;
 					if (m_gameSessionToken == tokenObj.watchdog_token) return;
 					Console.WriteLine("Watchdog token changed.");
-					Reset();
+					m_onSessionClose?.Invoke(this);
 				}, exception =>
 				{
 					Console.WriteLine($"Could not retrieve watchdog token: {exception.Message}.");
-					Reset();
+					m_onSessionClose?.Invoke(this);
 				}
 			);
 		}
@@ -166,7 +196,7 @@ public class SimulationSession
 				}, exception =>
 				{
 					Console.WriteLine($"Could not refresh api access token: {exception.Message}.");
-					Reset();
+					m_onSessionClose?.Invoke(this);
 				}
 			);
 		}
@@ -198,7 +228,36 @@ public class SimulationSession
 
 	private void OnReportStateEntered()
 	{
-		m_onReportStateEntered?.Invoke(this);
+		SubmitKpis().ContinueWithOnSuccess(_ =>
+		{
+			FireStateMachineTrigger(Trigger.FinishedReport);
+		});
+	}
+
+	private Task SubmitKpis()
+	{
+		if (m_kpis.Count == 0) return Task.CompletedTask;
+		return m_mspClient.HttpPost(
+			API_SET_KPI,
+			new NameValueCollection
+			{
+				{ "kpiValues", JsonConvert.SerializeObject(m_kpis) }
+			},
+			new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } }
+		);
+	}
+
+	public Task SetSimulationDefinitions(List<SimulationDefinition> a_definitions)
+	{
+		m_simulationDefinitions = a_definitions;
+		var nameValueCollection = new NameValueCollection();
+		foreach (var simulationDefinition in m_simulationDefinitions)
+		{
+			nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
+		}
+		return m_mspClient.HttpPost(API_SET_SIM_DEFINITIONS, nameValueCollection,
+			new NameValueCollection { { "X-Remove-Previous", "true" } }
+		);
 	}
 
 	public void FireStateMachineTrigger(Trigger a_trigger)
