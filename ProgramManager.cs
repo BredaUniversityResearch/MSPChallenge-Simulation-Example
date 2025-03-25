@@ -17,17 +17,16 @@ namespace MSPChallenge_Simulation;
 
 public class ProgramManager()
 {
-	const string API_PING = "/Watchdog/Ping"; //Incoming ping request
-	const string API_SET_MONTH = "/Watchdog/SetMonth"; //Incoming call to set session month
-	const string API_SET_STATE = "/Watchdog/UpdateState"; //Incoming call to set session month and state
-
-	private const int DefaultTickRateMs = 1000; // 1000ms = 1 second
+	const string API_PING = "/Watchdog/Ping";               //Incoming ping request
+	const string API_SET_MONTH = "/Watchdog/SetMonth";      //Incoming call to set session month
+	const string API_SET_STATE = "/Watchdog/UpdateState";   //Incoming call to set session month and state
+    const int DefaultTickRateMs = 1000;                     // 1000ms = 1 second
 
     private int m_tickRateMs = DefaultTickRateMs;
 	private DateTime m_lastTickTime = DateTime.Now;
 	private readonly string[] m_args = [];
 
-    //Session data
+    // Session data
     private Dictionary<string, SimulationSession> m_sessions; //Unique session tokens as keys
 
 	// Define public events
@@ -121,7 +120,7 @@ public class ProgramManager()
         .WithName("Ping")
         .WithOpenApi();
 
-        app.MapPost("/Watchdog/SetMonth", ([FromBody] SetMonthRequest request) =>
+        app.MapPost(API_SET_MONTH, ([FromBody] SetMonthRequest request) =>
         {
             try {
                 ValidateRequestAllowed(request.game_session_token);

@@ -1,7 +1,4 @@
 using System.Collections.Specialized;
-using System.CommandLine;
-using DotNetEnv;
-using Microsoft.AspNetCore.Mvc;
 using MSPChallenge_Simulation.Extensions;
 using MSPChallenge_Simulation.Api;
 using MSPChallenge_Simulation.Communication;
@@ -11,7 +8,9 @@ using MSPChallenge_Simulation.Simulation.Exceptions;
 using MSPChallenge_Simulation.StateMachine;
 using Newtonsoft.Json;
 using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
-using Microsoft.AspNetCore.Http;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -19,28 +18,33 @@ public class SimulationSession
 {
 	const string API_GET_WATCHDOG_TOKEN = "/api/Simulation/GetWatchdogTokenForServer";
 	const string API_GET_TOKEN = "/api/User/RequestToken";
-	const string API_SET_KPI = "/api/kpi/BatchPost"; //Sets kpis in "kpiValues" list
-	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert"; //Sets simulation definitions used for session
+	const string API_SET_KPI = "/api/kpi/BatchPost";									//Sets kpis in "kpiValues" list
+	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert";					//Sets simulation definitions used for session
+	const int DefaultMonth = -1; // setup month
+	const int PollTokenFrequencySec = 60;
+	const int RefreshApiAccessTokenFrequencySec = 900;
 
-	private const int DefaultMonth = -1; // setup month
-	private const int PollTokenFrequencySec = 60;
-	private const int RefreshApiAccessTokenFrequencySec = 900;
-
+	//Session meta
 	private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
 	private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
+	private string m_gameSessionToken;
+	private GameSessionInfo m_gameSessionInfo;
+	private List<SimulationDefinition>? m_simulationDefinitions = null;
+
+	//Session state
 	private int m_currentMonth = DefaultMonth;
 	private int m_targetMonth = DefaultMonth;
 	private EGameState? m_currentGameState;
 	private EGameState? m_targetGameState = EGameState.Setup;
-
-	private string m_gameSessionToken;
-	private GameSessionInfo m_gameSessionInfo;
 	private ProgramStateMachine? m_programStateMachine;
-	private MspClient m_mspClient;
-	private List<SimulationDefinition>? m_simulationDefinitions = null;
 
+	//Server communication
+	private MspClient m_mspClient;
+
+	//Simulation specific data
 	public LayerMeta m_bathymetryMeta;
 	public LayerMeta m_sandDepthMeta;
+	public Image<Rgba32> m_sandDepthRaster;
 	public LayerMeta m_pitsMeta;
 	public List<KPI> m_kpis = new List<KPI>();
 
