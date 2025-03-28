@@ -11,6 +11,8 @@ using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using Microsoft.AspNetCore.Http;
+using System.IO;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -19,7 +21,8 @@ public class SimulationSession
 	const string API_GET_WATCHDOG_TOKEN = "/api/Simulation/GetWatchdogTokenForServer";
 	const string API_GET_TOKEN = "/api/User/RequestToken";
 	const string API_SET_KPI = "/api/kpi/BatchPost";									//Sets kpis in "kpiValues" list
-	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert";					//Sets simulation definitions used for session
+	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert";                    //Sets simulation definitions used for session
+	const string API_SET_RASTER = "/api/layer/UpdateRaster";							//set raster for layer with "layer_name"
 	const int DefaultMonth = -1; // setup month
 	const int PollTokenFrequencySec = 60;
 	const int RefreshApiAccessTokenFrequencySec = 900;
@@ -45,8 +48,12 @@ public class SimulationSession
 	public LayerMeta m_bathymetryMeta;
 	public LayerMeta m_sandDepthMeta;
 	public Image<Rgba32> m_sandDepthRaster;
+	public float[][] m_sandDepthRasterBounds;
 	public LayerMeta m_pitsMeta;
+
+	//Output
 	public List<KPI> m_kpis = new List<KPI>();
+	public string m_newBathymetryRaster;
 
 	public int CurrentMonth => m_currentMonth;
 	public MspClient MSPClient => m_mspClient;
@@ -248,7 +255,13 @@ public class SimulationSession
 				{ "kpiValues", JsonConvert.SerializeObject(m_kpis) }
 			},
 			new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } }
-		);
+		).ContinueWithOnSuccess(_ =>
+		{
+			NameValueCollection postData = new NameValueCollection(2);
+			postData.Set("layer_name", m_bathymetryMeta.layer_name);
+			postData.Set("image_data", m_newBathymetryRaster);
+			return m_mspClient.HttpPost(API_SET_RASTER, postData);
+		});
 	}
 
 	public Task SetSimulationDefinitions(List<SimulationDefinition> a_definitions)
