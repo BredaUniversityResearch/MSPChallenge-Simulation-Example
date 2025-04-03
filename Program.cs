@@ -37,8 +37,8 @@ List<SimulationDefinition> GetSimulationDefinitions(GameSessionInfo gameSessionI
 
 bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 {
-    //The simulation requires layers only present in the 'OR ELSE' config file
-    return "North_OR_ELSE" == gameSessionInfo.config_file_name;
+	//The simulation requires layers only present in the 'OR ELSE' config file
+	return true;// "North_OR_ELSE" == gameSessionInfo.config_file_name;
 }
 
 // Once connected to the server, start setup.
@@ -131,9 +131,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	 * Update bathymetry raster pixel with result
 	 */
 
-
-	byte[] imageBytes = Convert.FromBase64String(a_bathymetryRaster.image_data);
-	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(imageBytes);
+	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 	double totalExtractedVolume = 0d;
 
 	//Depth raster dimensions
@@ -201,8 +199,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 						case 255: depth = 12f; break;  // 10-12m
 						default: depth = 0f; break;   // Unknown value
 					}
-				pitVolume += GetPolygonOverlapArea(pit.geometry, pixelPoints) * Math.Min(depth, pitDepth);
-				
+				pitVolume += GetPolygonOverlapArea(pit.geometry, pixelPoints) * Math.Min(depth, pitDepth);				
 			}
 		}
 		totalExtractedVolume += pitVolume;
@@ -240,7 +237,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	//Set extraction KPIs
 	a_session.m_kpis = new List<KPI>() { new KPI()
 		{
-			name = $"Extracted sand volume",
+			name = "Extracted sand volume",
 			type = "EXTERNAL",
 			value = totalExtractedVolume,
 			unit = "m3",
