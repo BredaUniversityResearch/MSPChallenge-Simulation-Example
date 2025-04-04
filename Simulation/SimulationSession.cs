@@ -47,13 +47,12 @@ public class SimulationSession
 	//Simulation specific data
 	public LayerMeta m_bathymetryMeta;
 	public LayerMeta m_sandDepthMeta;
-	public Image<Rgba32> m_sandDepthRaster;
-	public float[][] m_sandDepthRasterBounds;
 	public LayerMeta m_pitsMeta;
 
 	//Output
 	public List<KPI> m_kpis = new List<KPI>();
 	public string m_newBathymetryRaster;
+	public string m_newSandDepthRaster;
 
 	public int CurrentMonth => m_currentMonth;
 	public MspClient MSPClient => m_mspClient;
@@ -280,5 +279,15 @@ public class SimulationSession
 	public void FireStateMachineTrigger(Trigger a_trigger)
 	{
 		m_programStateMachine?.Fire(a_trigger);
+	}
+
+	public void SetLayerMeta(LayerMeta a_meta, int a_internalLayerID)
+	{
+		if(a_internalLayerID == 0)
+			m_bathymetryMeta = a_meta;
+		else if (a_internalLayerID == 1)
+			m_sandDepthMeta = a_meta;
+		else if (a_internalLayerID == 2)
+			m_pitsMeta = a_meta;
 	}
 }

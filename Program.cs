@@ -38,65 +38,53 @@ List<SimulationDefinition> GetSimulationDefinitions(GameSessionInfo gameSessionI
 bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 {
 	//The simulation requires layers only present in the 'OR ELSE' config file
-	return true;// "North_OR_ELSE" == gameSessionInfo.config_file_name;
+	return true;// "NS_OR_ELSE" == gameSessionInfo.config_file_name;
 }
 
-// Once connected to the server, start setup.
-//   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
+// Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
 Task SetupSession(SimulationSession session)
 {
-	NameValueCollection bathymetryTags = new NameValueCollection { { "layer_tags", "Bathymetry,ValueMap" } };
-	NameValueCollection sandDepthTags = new NameValueCollection { { "layer_tags", "SandDepth,ValueMap" } };
-	NameValueCollection sandPitsTags = new NameValueCollection { { "layer_tags", "SandAndGravel,Extraction,Polygon" } };
+	//Task t1 = GetLayerMeta(session, "ValueMap,Bathymetry", 0);
+	//Task t2 = GetLayerMeta(session, "ValueMap,SandDepth,SandExtraction", 1);
+	//Task t3 = GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
 
-    return session.MSPClient.HttpPost<List<LayerMeta>>(
-	   API_GET_LAYER_LIST, bathymetryTags
+	//return Task.WhenAll(t1, t2, t3);
+
+	//Get bathymetry meta
+	return GetLayerMeta(session, "ValueMap,Bathymetry", 0)
+		.ContinueWithOnSuccess(_ =>
+		{
+			//Get sand depth raster meta
+			return GetLayerMeta(session, "ValueMap,SandDepth", 1);
+		})
+		.ContinueWithOnSuccess(_ =>
+		{
+			//Get pits meta
+			return GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
+		});
+}
+
+Task GetLayerMeta(SimulationSession a_session, string a_tags, int a_internalLayerID)
+{
+	return a_session.MSPClient.HttpPost<List<LayerMeta>>(
+		API_GET_LAYER_LIST,
+		new NameValueCollection { { "layer_tags", a_tags } }
 	).ContinueWithOnSuccess(layerListTask =>
-    {
-        List<LayerMeta> layers = layerListTask.Result;
-        if (layers.Count == 0)
-            throw new Exception($"Could not find layer with tags: {bathymetryTags["layer_tags"]}.");
-        LayerMeta layer = layerListTask.Result[0];
-        Console.WriteLine($"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
+	{
+		List<LayerMeta> layers = layerListTask.Result;
+		if (layers.Count == 0)
+			throw new Exception($"Could not find layer with tags: {a_tags}.");
+		LayerMeta layer = layerListTask.Result[0];
+		Console.WriteLine($"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
 
-        return (layer, session.MSPClient.HttpPost<LayerMeta>(
+		return a_session.MSPClient.HttpPost<LayerMeta>(
 			API_GET_LAYER_META,
-            new NameValueCollection
-            {
-                { "layer_id", layer.layer_id.ToString() }
-            }));
-    }).ContinueWithOnSuccess(dataset =>
-    {
-        var (layer, layerMetaTask) = dataset.Result;
-		LayerMeta layerWithMeta = layerMetaTask.Result;
-        if (layerWithMeta.layer_id == 0)
-        {
-            throw new Exception($"Could not find layer data for layer id {layer.layer_id}.");
-        }
-        Console.WriteLine(
-            $"Retrieved additional data for Layer with id {layer.layer_id} having {layer.layer_type.Count} layer types.");
-        return (layerWithMeta, session.MSPClient.HttpPost<List<SubEntityObject>>(
-			API_GET_LAYER_VECTOR,
-            new NameValueCollection
-            {
-                { "layer_id", layer.layer_id.ToString() }
-            }));
-    }).ContinueWithOnSuccess(dataset =>
-    {
-        var (layer, layerGetTask) = dataset.Result;
-        var layerObjects = layerGetTask.Result;
-        if (layerObjects.Count == 0)
-        {
-            throw new Exception($"Could not find any layer geometry objects for layer with id {layer.layer_id}");
-        }
-
-        Console.WriteLine(
-            $"Retrieved geometry for layer with id {layer.layer_id} having {layerObjects.Count} layer objects.");
-        foreach (var layerObject in layerObjects)
-        {
-            Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
-        }
-    });
+			new NameValueCollection { { "layer_id", layer.layer_id.ToString() }
+		});
+	}).ContinueWithOnSuccess(metaResult =>
+	{
+		a_session.SetLayerMeta(metaResult.Result.Result, a_internalLayerID);
+	});
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
@@ -107,23 +95,30 @@ Task SessionSimulationStateEntered(SimulationSession session)
 		   API_GET_LAYER_VECTOR,
 		   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() } }
     ).ContinueWithOnSuccess(pitGeometry =>
+	{
+		//Get bathymetry raster
+		return (pitGeometry, session.MSPClient.HttpPost<RasterRequestResponse>(
+		   API_GET_RASTER,
+		   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name } }
+		));
+	}).ContinueWithOnSuccess(dataset =>
     {
-        //Get bathymetry raster
-        return (pitGeometry, session.MSPClient.HttpPost<RasterRequestResponse>(
+		var (pitGeometry, bathymetryRaster) = dataset.Result;
+
+		//Get sand depth raster
+		return (pitGeometry, bathymetryRaster, session.MSPClient.HttpPost<RasterRequestResponse>(
            API_GET_RASTER,
-           new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name } }
+           new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name } }
         ));
     }).ContinueWithOnSuccess(dataset =>
 	{
 		//Do actual simulation calculation
-		var (pitGeometry, bathymetryRaster) = dataset.Result;
-        RunSimulationMonth(session, bathymetryRaster.Result, pitGeometry.Result);
+		var (pitGeometry, bathymetryRaster, sandDepthRaster) = dataset.Result;
+        RunSimulationMonth(session, bathymetryRaster.Result, sandDepthRaster.Result, pitGeometry.Result);
 	});
 }
 
-
-//TODO: Taken from Imagesharp reference, adapt to actual functionality
-void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bathymetryRaster, List<SubEntityObject> a_pitGeometry)
+void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bathymetryRaster, RasterRequestResponse a_sandDepthRaster, List<SubEntityObject> a_pitGeometry)
 {
 	/* General algorithm overview:
 	 * Per pit, iterate through bathymetry raster pixels that overlap the pit's bounds
@@ -131,16 +126,15 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	 * Update bathymetry raster pixel with result
 	 */
 
+	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 	double totalExtractedVolume = 0d;
 
 	//Depth raster dimensions
-	int sdRasterPixelWidth = a_session.m_sandDepthRaster.Width;
-	int sdRasterPixelHeight = a_session.m_sandDepthRaster.Height;
-	float sdRasterRealWidth = a_session.m_sandDepthRasterBounds[1][0] - a_session.m_sandDepthRasterBounds[0][0];
-	float sdRasterRealHeight = a_session.m_sandDepthRasterBounds[1][1] - a_session.m_sandDepthRasterBounds[0][1];
-	float sdRealWidthPerPixel = sdRasterRealWidth / sdRasterPixelWidth;
-	float sdRealHeightPerPixel = sdRasterRealHeight / sdRasterPixelHeight;
+	float sdRasterRealWidth = a_sandDepthRaster.displayed_bounds[1][0] - a_sandDepthRaster.displayed_bounds[0][0];
+	float sdRasterRealHeight = a_sandDepthRaster.displayed_bounds[1][1] - a_sandDepthRaster.displayed_bounds[0][1];
+	float sdRealWidthPerPixel = sdRasterRealWidth / sdRaster.Width;
+	float sdRealHeightPerPixel = sdRasterRealHeight / sdRaster.Height;
 
 	foreach (SubEntityObject pit in a_pitGeometry)
     {
@@ -167,14 +161,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 		//Relative normalized position of the bounding box of the SubEntity within the Raster bounding box.
 		//Converts world coordinates to normalized[0, 1] range relative to the raster's bounds.
-		float relativeXNormalized = (pitXMin - a_session.m_sandDepthRasterBounds[0][0]) / sdRasterRealWidth;
-		float relativeYNormalized = (pitYMin - a_session.m_sandDepthRasterBounds[0][1]) / sdRasterRealHeight;
+		float relativeXNormalized = (pitXMin - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth;
+		float relativeYNormalized = (pitYMin - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight;
 
 		//Calculates the range of raster pixels that overlap with the polygon's bounding box.
-		int startX = (int)Math.Floor(relativeXNormalized * sdRasterPixelWidth);
-		int startY = (int)Math.Floor(relativeYNormalized * sdRasterPixelHeight);
-		int endX = (int)Math.Ceiling((relativeXNormalized + (pitXMax - pitXMin) / sdRasterRealWidth) * sdRasterPixelWidth + 1);
-		int endY = (int)Math.Ceiling((relativeYNormalized + (pitYMax - pitYMin) / sdRasterRealHeight) * sdRasterPixelHeight + 1);
+		int startX = (int)Math.Floor(relativeXNormalized * sdRaster.Width);
+		int startY = (int)Math.Floor(relativeYNormalized * sdRaster.Height);
+		int endX = (int)Math.Ceiling((relativeXNormalized + (pitXMax - pitXMin) / sdRasterRealWidth) * sdRaster.Width + 1);
+		int endY = (int)Math.Ceiling((relativeYNormalized + (pitYMax - pitYMin) / sdRasterRealHeight) * sdRaster.Height + 1);
 
 		//Iterates through every pixel in the calculated range.
 		for (int x = startX; x < endX; x++)
@@ -182,14 +176,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			for (int y = startY; y < endY; y++)
 			{
 				float[,] pixelPoints = {
-						{ a_session.m_sandDepthRasterBounds[0][0] + x * sdRealWidthPerPixel, a_session.m_sandDepthRasterBounds[0][1] + y * sdRealHeightPerPixel },
-						{ a_session.m_sandDepthRasterBounds[0][0] + x * sdRealWidthPerPixel, a_session.m_sandDepthRasterBounds[0][1] + (y + 1) * sdRealHeightPerPixel },
-						{ a_session.m_sandDepthRasterBounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_session.m_sandDepthRasterBounds[0][1] + (y + 1) * sdRealHeightPerPixel },
-						{ a_session.m_sandDepthRasterBounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_session.m_sandDepthRasterBounds[0][1] + y * sdRealHeightPerPixel } };
+						{ a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel },
+						{ a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel },
+						{ a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel },
+						{ a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel } };
 
 					//Map raster value to actual depth based on your JSON data
 					float depth = 0f;
-					switch (a_session.m_sandDepthRaster[x, y].R)
+					switch (sdRaster[x, y].R)
 					{
 						case 43: depth = 2f; break;    // 0-2m
 						case 85: depth = 4f; break;    // 2-4m
