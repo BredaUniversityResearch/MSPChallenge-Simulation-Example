@@ -16,6 +16,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using ClipperLib;
 
 const float INT_CONVERSION = 100000000000000.0f;
+const float BATHYMETRY_MAX_DEPTH = 100000000000000.0f;
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
 const string API_GET_LAYER_META = "/api/Layer/Meta";    //get layer metadata for layer with "layer_id"
@@ -121,26 +122,37 @@ Task SessionSimulationStateEntered(SimulationSession session)
 void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bathymetryRaster, RasterRequestResponse a_sandDepthRaster, List<SubEntityObject> a_pitGeometry)
 {
 	/* General algorithm overview:
-	 * Per pit, iterate through bathymetry raster pixels that overlap the pit's bounds
-	 * Calculate sand volume extracted for pixel (pit depth, available sand, overlap of pit with pixel)
-	 * Update bathymetry raster pixel with result
+	 * Per !changed! pit:
+	 *		Iterate through 'available sand depth' raster pixels that overlap the pit's bounds
+	 *			Calculate sand volume extracted for pixel (pit depth, available sand, overlap of pit with pixel)
+	 *			Update pixel with extracted amount
+	 *		Iterate through 'bathymetry' raster pixels that overlap the pit's bounds
+	 *			Determine the avg actual extraction depth for the pixel (using values calculated above)
+	 *			Update pixel with extracted amount
+	 * Calculate KPI for total extracted volume
+	 * Send new rasters and KPIs to server
 	 */
 
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 	double totalExtractedVolume = 0d;
 
-	//Depth raster dimensions
+	//Raster dimensions
 	float sdRasterRealWidth = a_sandDepthRaster.displayed_bounds[1][0] - a_sandDepthRaster.displayed_bounds[0][0];
 	float sdRasterRealHeight = a_sandDepthRaster.displayed_bounds[1][1] - a_sandDepthRaster.displayed_bounds[0][1];
 	float sdRealWidthPerPixel = sdRasterRealWidth / sdRaster.Width;
 	float sdRealHeightPerPixel = sdRasterRealHeight / sdRaster.Height;
+	float bathRasterRealWidth = a_bathymetryRaster.displayed_bounds[1][0] - a_bathymetryRaster.displayed_bounds[0][0];
+	float bathRasterRealHeight = a_bathymetryRaster.displayed_bounds[1][1] - a_bathymetryRaster.displayed_bounds[0][1];
+	float bathRealWidthPerPixel = bathRasterRealWidth / bathRaster.Width;
+	float bathRealHeightPerPixel = bathRasterRealHeight / bathRaster.Height;
 
+	//TODO: only do this for new/changed pits
 	foreach (SubEntityObject pit in a_pitGeometry)
-    {
+	{
 		double pitVolume = 0f;
 		int pitDepth;
-		if(pit.data == null || !pit.data.TryGetValue("PitExtractionDepth", out string pitDepthStr) || !int.TryParse(pitDepthStr, out pitDepth))
+		if (pit.data == null || !pit.data.TryGetValue("PitExtractionDepth", out string pitDepthStr) || !int.TryParse(pitDepthStr, out pitDepth))
 		{
 			Console.WriteLine($"Missing pit depth for pit with ID={pit.id}, skipped for calculation");
 			continue;
@@ -151,29 +163,27 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		float pitYMin = float.PositiveInfinity;
 		float pitXMax = float.NegativeInfinity;
 		float pitYMax = float.NegativeInfinity;
-		foreach(float[] point in pit.geometry)
+		foreach (float[] point in pit.geometry)
 		{
-			pitXMin = Math.Min(pitXMin, point[0]);	
+			pitXMin = Math.Min(pitXMin, point[0]);
 			pitXMax = Math.Max(pitXMax, point[0]);
 			pitYMin = Math.Min(pitYMin, point[1]);
 			pitYMax = Math.Max(pitYMax, point[1]);
 		}
 
-		//Relative normalized position of the bounding box of the SubEntity within the Raster bounding box.
-		//Converts world coordinates to normalized[0, 1] range relative to the raster's bounds.
-		float relativeXNormalized = (pitXMin - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth;
-		float relativeYNormalized = (pitYMin - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight;
+		//Calculates the range of SD raster pixels that overlap with the pit's bounding box.
+		int sdStartX = (int)Math.Floor((pitXMin - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width);
+		int sdStartY = (int)Math.Floor((pitYMin - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height);
+		int sdEndX = (int)Math.Ceiling((pitXMax - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width);
+		int sdEndY = (int)Math.Ceiling((pitYMax - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height);
 
-		//Calculates the range of raster pixels that overlap with the polygon's bounding box.
-		int startX = (int)Math.Floor(relativeXNormalized * sdRaster.Width);
-		int startY = (int)Math.Floor(relativeYNormalized * sdRaster.Height);
-		int endX = (int)Math.Ceiling((relativeXNormalized + (pitXMax - pitXMin) / sdRasterRealWidth) * sdRaster.Width + 1);
-		int endY = (int)Math.Ceiling((relativeYNormalized + (pitYMax - pitYMin) / sdRasterRealHeight) * sdRaster.Height + 1);
+		//Actual extraction depth used to update the bathymetry after the sd raster has been updated
+		float[,] extractionDepth = new float[sdEndX - sdStartX, sdEndY - sdStartY];
 
-		//Iterates through every pixel in the calculated range.
-		for (int x = startX; x < endX; x++)
+		//Iterates through every pixel in the pit bounding box
+		for (int x = sdStartX; x < sdEndX; x++)
 		{
-			for (int y = startY; y < endY; y++)
+			for (int y = sdStartY; y < sdEndY; y++)
 			{
 				float[,] pixelPoints = {
 						{ a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel },
@@ -181,52 +191,84 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 						{ a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel },
 						{ a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel } };
 
-					//Map raster value to actual depth based on your JSON data
-					float depth = 0f;
-					switch (sdRaster[x, y].R)
-					{
-						case 43: depth = 2f; break;    // 0-2m
-						case 85: depth = 4f; break;    // 2-4m
-						case 128: depth = 6f; break;   // 4-6m
-						case 170: depth = 8f; break;   // 6-8m
-						case 213: depth = 10f; break;  // 8-10m
-						case 255: depth = 12f; break;  // 10-12m
-						default: depth = 0f; break;   // Unknown value
-					}
-				pitVolume += GetPolygonOverlapArea(pit.geometry, pixelPoints) * Math.Min(depth, pitDepth);				
+				float rasterDepth = (float)sdRaster[x, y].R / 256f * 12f;
+				float actualDepth = Math.Min(rasterDepth, pitDepth);
+				extractionDepth[x - sdStartX, y - sdStartY] = actualDepth;
+				float extractedVolume = GetPolygonOverlapArea(pit.geometry, pixelPoints) * actualDepth;
+				//Extracted volume / (total volume in pixel) * pixel value
+				byte newSDRasterValue = (byte)(extractedVolume / (sdRealWidthPerPixel * sdRealHeightPerPixel * rasterDepth) * sdRaster[x, y].R);
+				sdRaster[x, y] = new Rgba32(newSDRasterValue, 0, 0);
+				pitVolume += extractedVolume;
 			}
 		}
 		totalExtractedVolume += pitVolume;
+
+		//Calculates the range of bathymetry raster pixels that overlap with the pit's bounding box.
+		int bathStartX = (int)Math.Floor((pitXMin - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * bathRaster.Width);
+		int bathStartY = (int)Math.Floor((pitYMin - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * bathRaster.Height);
+		int bathEndX = (int)Math.Ceiling((pitXMax - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * bathRaster.Width);
+		int bathEndY = (int)Math.Ceiling((pitYMax - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * bathRaster.Height);
+
+		for (int x = bathStartX; x < bathEndX; x++)
+		{
+			for (int y = bathStartY; y < bathEndY; y++)
+			{
+				float[,] bathPixelPoints = {
+						{ a_bathymetryRaster.displayed_bounds[0][0] + x * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel },
+						{ a_bathymetryRaster.displayed_bounds[0][0] + x * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + (y + 1) * bathRealHeightPerPixel },
+						{ a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + (y + 1) * bathRealHeightPerPixel },
+						{ a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel } };
+
+				float pixelPitOverlap = GetPolygonOverlapArea(pit.geometry, bathPixelPoints);
+				if (pixelPitOverlap < 0.001f)
+					continue;
+				float pixelArea = bathRealWidthPerPixel * bathRealHeightPerPixel; //Area of bath pixel
+				float coverageFraction = pixelPitOverlap / pixelArea; //Fraction of bath pixel covered by pit
+
+				//Find average extraction depth of bathymetry pixel 
+				float avgExtractionDepth = 0f;
+				//Min and max pixel coordinates of this bath pixel on the sd raster
+				int depthStartX = Math.Max(sdStartX, (int)Math.Floor((bathPixelPoints[0, 0] - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width));
+				int depthStartY = Math.Max(sdStartY, (int)Math.Floor((bathPixelPoints[0, 1] - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
+				int depthEndX = Math.Min(sdEndX, (int)Math.Ceiling((bathPixelPoints[2, 0] - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width));
+				int depthEndY = Math.Min(sdEndY, (int)Math.Ceiling((bathPixelPoints[2, 1] - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
+				for (int depthX = depthStartX; depthX < depthEndX; depthX++)
+				{
+					for (int depthY = depthStartY; depthY < depthEndY; depthY++)
+					{
+						//Find fraction of bath pixel overlapping this sd pixel
+						float[,] sdPixelPoints = {
+							{ a_sandDepthRaster.displayed_bounds[0][0] + depthX * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel },
+							{ a_sandDepthRaster.displayed_bounds[0][0] + depthX * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel },
+							{ a_sandDepthRaster.displayed_bounds[0][0] + (depthX + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel },
+							{ a_sandDepthRaster.displayed_bounds[0][0] + (depthX + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel } };
+						float overlap = GetRectangleOverlapArea(bathPixelPoints, sdPixelPoints);
+						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with coverage fraction
+						avgExtractionDepth += overlap / pixelArea * extractionDepth[depthX - sdStartX, depthY - sdStartY];
+					}
+				}
+
+				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
+				//TODO: Should coverage be used here, isnt it already included in the way the avg depth is calculated?
+				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, y].R) - avgExtractionDepth * coverageFraction;
+				bathRaster[x, y] = new Rgba32(GetBathymeteryValueForDepth(newDepth), 0, 0);
+			}
+		}
 	}
-	//image.ProcessPixelRows(accessor =>
-	//{
-	//	// Color is pixel-agnostic, but it's implicitly convertible to the Rgba32 pixel type
-	//	Rgba32 transparent = Color.Transparent;
 
-	//	for (int y = 0; y < accessor.Height; y++)
-	//	{
-	//		Span<Rgba32> pixelRow = accessor.GetRowSpan(y);
-
-	//		// pixelRow.Length has the same value as accessor.Width,
-	//		// but using pixelRow.Length allows the JIT to optimize away bounds checks:
-	//		for (int x = 0; x < pixelRow.Length; x++)
-	//		{
-	//			// Get a reference to the pixel at position x
-	//			ref Rgba32 pixel = ref pixelRow[x];
-	//			if (pixel.A == 0)
-	//			{
-	//				// Overwrite the pixel referenced by 'ref Rgba32 pixel':
-	//				pixel = transparent;
-	//			}
-	//		}
-	//	}
-	//});
+	//Write new depth raster
+	using MemoryStream stream = new(16384);
+	sdRaster.Save(stream, new PngEncoder());
+	a_session.m_newBathymetryRaster = Convert.ToBase64String(stream.ToArray());
+	stream.Dispose();
+	sdRaster.Dispose();
 
 	//Write new bathymetry raster
-	using MemoryStream stream = new(16384);
-	bathRaster.Save(stream, new PngEncoder());
-	a_session.m_newBathymetryRaster = Convert.ToBase64String(stream.ToArray());
-	//bathRaster.Dispose();
+	using MemoryStream stream2 = new(16384);
+	bathRaster.Save(stream2, new PngEncoder());
+	a_session.m_newBathymetryRaster = Convert.ToBase64String(stream2.ToArray());
+	stream2.Dispose();
+	bathRaster.Dispose();
 
 	//Set extraction KPIs
 	a_session.m_kpis = new List<KPI>() { new KPI()
@@ -237,8 +279,19 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			unit = "m3",
 			month = a_session.CurrentMonth+1,
 			country = -1 // for now, the server only supports showing non-country specific external KPIs
-            //country = layerType.Value.value // eez layer type value = country id
         }};
+}
+
+float GetBathymeteryDepthForRaster(byte a_value)
+{
+	//TODO
+	return 1f;
+}
+
+byte GetBathymeteryValueForDepth(float a_depth)
+{
+	//TODO 
+	return 1;
 }
 
 float[,] GetPolygonOverlap(float[][] a_polygon1, float[,] a_polygon2)
@@ -254,6 +307,13 @@ float[,] GetPolygonOverlap(float[][] a_polygon1, float[,] a_polygon2)
 		return IntPointToVector(csolution[0]);
 	}
 	return new float[0,0];
+}
+
+float GetRectangleOverlapArea(float[,] a_rectA, float[,] a_rectB)
+{
+	return Math.Max(0, Math.Min(a_rectA[2, 0], a_rectB[2, 0]) - Math.Max(a_rectA[0, 0], a_rectB[0, 0])) *
+		Math.Max(0, Math.Min(a_rectA[2, 1], a_rectB[2, 1]) - Math.Max(a_rectA[0, 1], a_rectB[0, 1]));
+	//Good explanation here: https://stackoverflow.com/questions/9324339/how-much-do-two-rectangles-overlap
 }
 
 float GetPolygonOverlapArea(float[][] a_polygon1, float[,] a_polygon2)
