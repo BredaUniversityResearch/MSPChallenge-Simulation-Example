@@ -50,7 +50,7 @@ public class SimulationSession
 	public LayerMeta m_pitsMeta;
 
 	//Output
-	public List<KPI> m_kpis = new List<KPI>();
+	public List<KPI> m_kpis;
 	public string m_newBathymetryRaster;
 	public string m_newSandDepthRaster;
 
@@ -68,6 +68,7 @@ public class SimulationSession
 		ApiToken a_apiAccessToken, 
 		ApiToken a_apiAccessRenewToken,
 		GameSessionInfo a_gameSessionInfo,
+		List<SimulationDefinition> a_simulationDefinitions,
 		Action<SimulationSession> a_onSetupStateEntered,
 		Action<SimulationSession> a_onSimulationStateEntered,
 		Action<SimulationSession> a_onSessionClose)
@@ -79,10 +80,6 @@ public class SimulationSession
 		m_onSessionClose = a_onSessionClose;
 
 		m_programStateMachine = new ProgramStateMachine();
-		m_programStateMachine.OnAwaitingSetupStateEnteredEvent += () =>
-		{
-			m_simulationDefinitions = null;
-		};
 		m_programStateMachine.OnSetupStateEnteredEvent += OnSetupStateEntered;
 		m_programStateMachine.OnSimulationStateEnteredEvent += OnSimulationStateEntered;
 		m_programStateMachine.OnReportStateEnteredEvent += OnReportStateEntered;
@@ -91,6 +88,17 @@ public class SimulationSession
 		m_mspClient.SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
+
+		m_simulationDefinitions = a_simulationDefinitions;
+		var nameValueCollection = new NameValueCollection();
+		foreach (var simulationDefinition in m_simulationDefinitions)
+		{
+			nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
+		}
+		m_mspClient.HttpPost(
+			API_SET_SIM_DEFINITIONS, 
+			nameValueCollection,
+			new NameValueCollection { { "X-Remove-Previous", "true" } } );
 	}
 
 	public void UpdateState(ApiToken a_apiAccessToken, ApiToken a_apiAccessRenewToken, EGameState a_newGameState, int a_targetMonth)
@@ -238,42 +246,34 @@ public class SimulationSession
 
 	private void OnReportStateEntered()
 	{
-		SubmitKpis().ContinueWithOnSuccess(_ =>
+		SubmitResults().ContinueWithOnSuccess(_ =>
 		{
+			m_kpis = null;
+			m_newSandDepthRaster = null;
+			m_newBathymetryRaster = null;
 			FireStateMachineTrigger(Trigger.FinishedReport);
 		});
 	}
 
-	private Task SubmitKpis()
+	private Task SubmitResults()
 	{
 		if (m_kpis.Count == 0) return Task.CompletedTask;
+
 		return m_mspClient.HttpPost(
-			API_SET_KPI,
-			new NameValueCollection
-			{
-				{ "kpiValues", JsonConvert.SerializeObject(m_kpis) }
-			},
-			new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } }
+			API_SET_RASTER, 
+			new NameValueCollection { { "layer_name", m_sandDepthMeta.layer_name}, { "image_data", m_newSandDepthRaster } }
 		).ContinueWithOnSuccess(_ =>
 		{
-			NameValueCollection postData = new NameValueCollection(2);
-			postData.Set("layer_name", m_bathymetryMeta.layer_name);
-			postData.Set("image_data", m_newBathymetryRaster);
-			return m_mspClient.HttpPost(API_SET_RASTER, postData);
-		});
-	}
-
-	public Task SetSimulationDefinitions(List<SimulationDefinition> a_definitions)
-	{
-		m_simulationDefinitions = a_definitions;
-		var nameValueCollection = new NameValueCollection();
-		foreach (var simulationDefinition in m_simulationDefinitions)
+			return m_mspClient.HttpPost(
+				API_SET_RASTER,
+				new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name}, { "image_data", m_newBathymetryRaster } });
+		}).ContinueWithOnSuccess(_ =>
 		{
-			nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
-		}
-		return m_mspClient.HttpPost(API_SET_SIM_DEFINITIONS, nameValueCollection,
-			new NameValueCollection { { "X-Remove-Previous", "true" } }
-		);
+			return m_mspClient.HttpPost(
+				API_SET_KPI,
+				new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
+				new NameValueCollection  {  { "x-notify-monthly-simulation-finished", "true" }  });
+		});
 	}
 
 	public void FireStateMachineTrigger(Trigger a_trigger)

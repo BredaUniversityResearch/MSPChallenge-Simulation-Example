@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Specialized;
 using System.Data;
 using System.Numerics;
@@ -16,7 +16,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using ClipperLib;
 
 const float INT_CONVERSION = 100000000000000.0f;
-const float BATHYMETRY_MAX_DEPTH = 100000000000000.0f;
+const float BATHYMETRY_MAX_DEPTH = 1000f;
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
 const string API_GET_LAYER_META = "/api/Layer/Meta";    //get layer metadata for layer with "layer_id"
@@ -45,24 +45,24 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 // Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
 Task SetupSession(SimulationSession session)
 {
-	//Task t1 = GetLayerMeta(session, "ValueMap,Bathymetry", 0);
-	//Task t2 = GetLayerMeta(session, "ValueMap,SandDepth,SandExtraction", 1);
-	//Task t3 = GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
+	Task t1 = GetLayerMeta(session, "ValueMap,Bathymetry", 0);
+	Task t2 = GetLayerMeta(session, "ValueMap,SandDepth", 1);
+	Task t3 = GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
 
-	//return Task.WhenAll(t1, t2, t3);
+	return Task.WhenAll(t1, t2, t3);
 
 	//Get bathymetry meta
-	return GetLayerMeta(session, "ValueMap,Bathymetry", 0)
-		.ContinueWithOnSuccess(_ =>
-		{
-			//Get sand depth raster meta
-			return GetLayerMeta(session, "ValueMap,SandDepth", 1);
-		})
-		.ContinueWithOnSuccess(_ =>
-		{
-			//Get pits meta
-			return GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
-		});
+	//return GetLayerMeta(session, "ValueMap,Bathymetry", 0)
+	//	.ContinueWithOnSuccess(_ =>
+	//	{
+	//		//Get sand depth raster meta
+	//		return GetLayerMeta(session, "ValueMap,SandDepth", 1);
+	//	})
+	//	.ContinueWithOnSuccess(_ =>
+	//	{
+	//		//Get pits meta
+	//		return GetLayerMeta(session, "Polygon,SandAndGravel,Extraction", 2);
+	//	});
 }
 
 Task GetLayerMeta(SimulationSession a_session, string a_tags, int a_internalLayerID)
@@ -157,6 +157,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			Console.WriteLine($"Missing pit depth for pit with ID={pit.id}, skipped for calculation");
 			continue;
 		}
+		float pitArea = GetPolygonAreaJagged(pit.geometry);
 
 		//Determine pit bounding box
 		float pitXMin = float.PositiveInfinity;
@@ -193,10 +194,13 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 				float rasterDepth = (float)sdRaster[x, y].R / 256f * 12f;
 				float actualDepth = Math.Min(rasterDepth, pitDepth);
-				extractionDepth[x - sdStartX, y - sdStartY] = actualDepth;
-				float extractedVolume = GetPolygonOverlapArea(pit.geometry, pixelPoints) * actualDepth;
+				float overlapArea = GetPolygonOverlapArea(pit.geometry, pixelPoints);
+				float extractedVolume = overlapArea * actualDepth;
+
 				//Extracted volume / (total volume in pixel) * pixel value
 				byte newSDRasterValue = (byte)(extractedVolume / (sdRealWidthPerPixel * sdRealHeightPerPixel * rasterDepth) * sdRaster[x, y].R);
+
+				extractionDepth[x - sdStartX, y - sdStartY] = actualDepth;
 				sdRaster[x, y] = new Rgba32(newSDRasterValue, 0, 0);
 				pitVolume += extractedVolume;
 			}
@@ -219,13 +223,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 						{ a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + (y + 1) * bathRealHeightPerPixel },
 						{ a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel, a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel } };
 
-				float pixelPitOverlap = GetPolygonOverlapArea(pit.geometry, bathPixelPoints);
-				if (pixelPitOverlap < 0.001f)
+				float[,] bathPitOverlap = GetPolygonOverlap(pit.geometry, bathPixelPoints);
+				float bathPitOverlapArea = GetPolygonArea(bathPitOverlap);
+				if (bathPitOverlapArea < 0.001f)
 					continue;
-				float pixelArea = bathRealWidthPerPixel * bathRealHeightPerPixel; //Area of bath pixel
-				float coverageFraction = pixelPitOverlap / pixelArea; //Fraction of bath pixel covered by pit
+				float bathPixelArea = bathRealWidthPerPixel * bathRealHeightPerPixel; //Area of bath pixel
+				float coverageFraction = bathPitOverlapArea / bathPixelArea; //Fraction of bath pixel covered by pit
 
-				//Find average extraction depth of bathymetry pixel 
+				//Find average extraction depth of the pit in bathymetry pixel 
 				float avgExtractionDepth = 0f;
 				//Min and max pixel coordinates of this bath pixel on the sd raster
 				int depthStartX = Math.Max(sdStartX, (int)Math.Floor((bathPixelPoints[0, 0] - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width));
@@ -236,20 +241,19 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 				{
 					for (int depthY = depthStartY; depthY < depthEndY; depthY++)
 					{
-						//Find fraction of bath pixel overlapping this sd pixel
 						float[,] sdPixelPoints = {
 							{ a_sandDepthRaster.displayed_bounds[0][0] + depthX * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel },
 							{ a_sandDepthRaster.displayed_bounds[0][0] + depthX * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel },
 							{ a_sandDepthRaster.displayed_bounds[0][0] + (depthX + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel },
 							{ a_sandDepthRaster.displayed_bounds[0][0] + (depthX + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel } };
-						float overlap = GetRectangleOverlapArea(bathPixelPoints, sdPixelPoints);
-						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with coverage fraction
-						avgExtractionDepth += overlap / pixelArea * extractionDepth[depthX - sdStartX, depthY - sdStartY];
+						//Find overlap of all 3 (pit∪bath∪sd)
+						float threeOverlapArea = GetRectangleOverlapArea(bathPitOverlap, sdPixelPoints);
+						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with (bath∪pit) coverage fraction
+						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * extractionDepth[depthX - sdStartX, depthY - sdStartY];
 					}
 				}
 
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
-				//TODO: Should coverage be used here, isnt it already included in the way the avg depth is calculated?
 				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, y].R) - avgExtractionDepth * coverageFraction;
 				bathRaster[x, y] = new Rgba32(GetBathymeteryValueForDepth(newDepth), 0, 0);
 			}
@@ -284,14 +288,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 float GetBathymeteryDepthForRaster(byte a_value)
 {
-	//TODO
-	return 1f;
+	//TODO: bath depth is not linear
+	return a_value / 256f * BATHYMETRY_MAX_DEPTH;
 }
 
 byte GetBathymeteryValueForDepth(float a_depth)
 {
-	//TODO 
-	return 1;
+	//TODO: bath depth is not linear
+	return (byte)(a_depth / BATHYMETRY_MAX_DEPTH * 256f);
 }
 
 float[,] GetPolygonOverlap(float[][] a_polygon1, float[,] a_polygon2)
@@ -328,6 +332,17 @@ float GetPolygonArea(float[,] polygon)
 	{
 		int j = (i + 1) % polygon.Length;
 		area += polygon[i,0] * polygon[j,1] - polygon[i,1] * polygon[j,0];
+	}
+	return Math.Abs(area * 0.5f);
+}
+
+float GetPolygonAreaJagged(float[][] polygon)
+{
+	float area = 0;
+	for (int i = 0; i < polygon.Length; ++i)
+	{
+		int j = (i + 1) % polygon.Length;
+		area += polygon[i][0] * polygon[j][1] - polygon[i][1] * polygon[j][0];
 	}
 	return Math.Abs(area * 0.5f);
 }

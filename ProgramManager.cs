@@ -12,6 +12,7 @@ using MSPChallenge_Simulation.StateMachine;
 using Newtonsoft.Json;
 using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 using System.Diagnostics;
+using Microsoft.AspNetCore.Http;
 
 namespace MSPChallenge_Simulation;
 
@@ -209,12 +210,12 @@ public class ProgramManager()
         {
             throw new Exception("Missing setup game session info");
         }
-        if(IsSetupAccepted(request.game_session_info))
+        if(IsSetupAccepted(request.game_session_info) && !m_sessions.ContainsKey(request.game_session_token))
         {
             // yes, we accepted this setup, add a new session object
             m_sessions.Add(request.game_session_token, new SimulationSession(
                 request.game_session_token, GetServerID(), 
-                request.game_session_api, apiAccessToken, apiAccessRenewToken, request.game_session_info,
+                request.game_session_api, apiAccessToken, apiAccessRenewToken, request.game_session_info, GetSimulationDefinitions(request.game_session_info),
 				OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose));
 		}
     }
@@ -270,9 +271,8 @@ public class ProgramManager()
 
 	private void OnSetupStateEntered(SimulationSession a_session)
 	{
-		a_session.SetSimulationDefinitions(GetSimulationDefinitions(a_session.GameSessionInfo))
-            .ContinueWithOnSuccess(_ => OnSetupEvent != null ? OnSetupEvent.Invoke(a_session) : Task.CompletedTask
-		).Unwrap().ContinueWith(task => {
+		(OnSetupEvent != null ? OnSetupEvent.Invoke(a_session) : Task.CompletedTask)
+        .ContinueWith(task => {
 			if (task.IsFaulted)
 			{
 				// output all aggregated exceptions
