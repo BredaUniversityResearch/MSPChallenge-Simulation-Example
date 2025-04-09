@@ -2,11 +2,26 @@
  "simulation_type": "External",
  "kpis": [
    {
-     "categoryName": "Sand Extraction",
+     "categoryName": "Sand Extraction Volume",
      "unit": "m3",
      "valueDefinitions": [
        {
-         "valueName": "Extracted sand volume"
+         "valueName": "Monthly Sand Volume"
+       },
+       {
+         "valueName": "Cumulative Sand Volume"
+       }
+     ]
+   },
+   {
+     "categoryName": "Sand Extraction Distance To Shore",
+     "unit": "km",
+     "valueDefinitions": [
+       {
+         "valueName": "Monthly DTS"
+       },
+       {
+         "valueName": "Total DTS"
        }
      ]
    }

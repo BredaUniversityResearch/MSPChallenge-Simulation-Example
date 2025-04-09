@@ -7,12 +7,9 @@ using MSPChallenge_Simulation.Simulation;
 using MSPChallenge_Simulation.Simulation.Exceptions;
 using MSPChallenge_Simulation.StateMachine;
 using Newtonsoft.Json;
-using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
-using Microsoft.AspNetCore.Http;
-using System.IO;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -32,7 +29,6 @@ public class SimulationSession
 	private double m_pollTokenTimeLeftSec = PollTokenFrequencySec;
 	private string m_gameSessionToken;
 	private GameSessionInfo m_gameSessionInfo;
-	private List<SimulationDefinition>? m_simulationDefinitions = null;
 
 	//Session state
 	private int m_currentMonth = DefaultMonth;
@@ -48,6 +44,10 @@ public class SimulationSession
 	public LayerMeta m_bathymetryMeta;
 	public LayerMeta m_sandDepthMeta;
 	public LayerMeta m_pitsMeta;
+	public LayerMeta m_shoreLineMeta;
+	public float[,] m_distanceToShoreRaster; //Has the same resolution as sandDepth raster
+	public double m_totalExtractedVolume = 0d;
+	public double m_totalDTS = 0d;
 
 	//Output
 	public List<KPI> m_kpis;
@@ -68,7 +68,7 @@ public class SimulationSession
 		ApiToken a_apiAccessToken, 
 		ApiToken a_apiAccessRenewToken,
 		GameSessionInfo a_gameSessionInfo,
-		List<SimulationDefinition> a_simulationDefinitions,
+		Dictionary<string, List<Version>> a_simulationDefinitions,
 		Action<SimulationSession> a_onSetupStateEntered,
 		Action<SimulationSession> a_onSimulationStateEntered,
 		Action<SimulationSession> a_onSessionClose)
@@ -89,11 +89,10 @@ public class SimulationSession
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
 
-		m_simulationDefinitions = a_simulationDefinitions;
 		var nameValueCollection = new NameValueCollection();
-		foreach (var simulationDefinition in m_simulationDefinitions)
+		foreach (var simulationDefinition in a_simulationDefinitions)
 		{
-			nameValueCollection.Add(simulationDefinition.Name, simulationDefinition.Version);
+			nameValueCollection.Add(simulationDefinition.Key, simulationDefinition.Value.ToString());
 		}
 		m_mspClient.HttpPost(
 			API_SET_SIM_DEFINITIONS, 
@@ -220,20 +219,6 @@ public class SimulationSession
 		}
 	}
 
-	public void CheckRequiredSimulations(Dictionary<string, string> requiredSimulations)
-	{
-		// if a required simulation is set, and it is not in the list of available simulations, throw an exception
-		if (m_simulationDefinitions == null)
-			throw new Exception($"No available simulations configured");
-		foreach (var simulationDefinition in m_simulationDefinitions)
-		{
-			if (!requiredSimulations.ContainsKey(simulationDefinition.Name))
-				throw new Exception($"Required simulation {simulationDefinition.Name} is not available");			
-			if (new Version(requiredSimulations[simulationDefinition.Name]) > new Version(simulationDefinition.Version))
-				throw new Exception($"Required simulation {simulationDefinition.Name} v{requiredSimulations[simulationDefinition.Name]} is not available");
-		}
-	}
-
 	private void OnSetupStateEntered()
 	{
 		m_onSetupStateEntered?.Invoke(this);
@@ -289,5 +274,7 @@ public class SimulationSession
 			m_sandDepthMeta = a_meta;
 		else if (a_internalLayerID == 2)
 			m_pitsMeta = a_meta;
+		else if (a_internalLayerID == 3)
+			m_shoreLineMeta = a_meta;
 	}
 }

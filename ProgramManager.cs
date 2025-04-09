@@ -19,6 +19,7 @@ namespace MSPChallenge_Simulation;
 public class ProgramManager()
 {
 	const string API_PING = "/Watchdog/Ping";               //Incoming ping request
+	const string API_CONNECT_SESSION = "/Watchdog/ConnectSession"; //Incoming call to connect with a new session
 	const string API_SET_MONTH = "/Watchdog/SetMonth";      //Incoming call to set session month
 	const string API_SET_STATE = "/Watchdog/UpdateState";   //Incoming call to set session month and state
     const int DefaultTickRateMs = 1000;                     // 1000ms = 1 second
@@ -26,13 +27,13 @@ public class ProgramManager()
     private int m_tickRateMs = DefaultTickRateMs;
 	private DateTime m_lastTickTime = DateTime.Now;
 	private readonly string[] m_args = [];
+	private Dictionary<string, List<Version>> m_simulationDefinitions;
 
     // Session data
     private Dictionary<string, SimulationSession> m_sessions; //Unique session tokens as keys
 
 	// Define public events
-	public event Func<GameSessionInfo, List<SimulationDefinition>>? GetSimulationDefinitions;
-    public event Func<GameSessionInfo, bool>? OnQuestionAcceptSetupEvent;
+    public event Func<GameSessionInfo, bool>? OnQuestionAcceptSessionEvent;
     public event Func<SimulationSession, Task>? OnSetupEvent;
     public event Func<SimulationSession, Task>? OnSimulationStateEnteredEvent;
     public event Action<double /* deltaTimeSec */, SimulationSession>? OnTickEvent;
@@ -41,11 +42,24 @@ public class ProgramManager()
     {
         m_args = args;
         m_sessions = new Dictionary<string, SimulationSession>();
+		m_simulationDefinitions = new Dictionary<string, List<Version>>();
 
 		TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
     }
+
+	public void AddSimulationDefinition(string a_name, Version a_version)
+	{
+		if (m_simulationDefinitions.TryGetValue(a_name, out var result))
+		{
+			result.Add(a_version);
+		}
+		else
+		{
+			m_simulationDefinitions.Add(a_name, new List<Version>() { a_version });
+		}
+	}
 
     private void Reset()
     {
@@ -117,71 +131,24 @@ public class ProgramManager()
         }
 
         app.MapPost(API_PING, () => Results.Ok(new { success = "1", message = "Pong" }))
-        .DisableAntiforgery()
-        .WithName("Ping")
-        .WithOpenApi();
+			.DisableAntiforgery()
+			.WithName("Ping")
+			.WithOpenApi();
 
-        app.MapPost(API_SET_MONTH, ([FromBody] SetMonthRequest request) =>
-        {
-            try {
-                ValidateRequestAllowed(request.game_session_token);
-            } catch (Exception e) {
-                return Results.Json(
-                    new { success = "0", message = e.Message },
-                    statusCode: StatusCodes.Status405MethodNotAllowed
-                );    
-            }
-			if (m_sessions.TryGetValue(request.game_session_token, out var session))
-			{
-				session.SetTargetMonth(request.month);
-			}
-			else
-			{
-				return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
-			}
-            return Results.Ok(new { success = "1", message = "Month set successfully" });
-        })
-        .DisableAntiforgery()
-        .WithName("SetMonth")
-        .WithOpenApi();
+		app.MapPost(API_CONNECT_SESSION, APIConnectSession)
+			.DisableAntiforgery()
+			.WithName("ConnectSession")
+			.WithOpenApi();
 
-        app.MapPost(API_SET_STATE, ([FromBody] UpdateStateRequest request) => {
-            var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_token);
-            var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(request.api_access_renew_token);
-            var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string,string>>(request.required_simulations);
+		app.MapPost(API_SET_MONTH, APISetMonth)
+			.DisableAntiforgery()
+			.WithName("SetMonth")
+			.WithOpenApi();
 
-            EGameState newGameState;
-            try
-            {
-                ValidateRequestData(apiAccessToken, apiAccessRenewToken, request, out newGameState);
-            } catch (Exception e) {
-                Console.WriteLine(e.Message);
-                return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });  
-            }
-
-            try {
-                ValidateRequestAllowed(request.game_session_token, requiredSimulations);
-            } catch (Exception e) {
-                Console.WriteLine(e.Message);
-                return Results.Json(
-                    new { success = "0", message = "Request not allowed: " + e.Message },
-                    statusCode: StatusCodes.Status405MethodNotAllowed
-                );    
-            }
-
-            if(m_sessions.TryGetValue(request.game_session_token, out var session))
-            {
-                session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, request.month);
-			}
-            else
-            {
-				return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
-			}
-            return Results.Ok(new { success = "1", message = "State updated successfully" });
-        })
-        .DisableAntiforgery()
-        .WithName("UpdateState")
-        .WithOpenApi();
+        app.MapPost(API_SET_STATE, APISetState)
+			.DisableAntiforgery()
+			.WithName("UpdateState")
+			.WithOpenApi();
 
         // Timer/tick setup
         var timer = new Timer(Tick, null, 0, m_tickRateMs); // 1000ms = 1 second
@@ -192,8 +159,100 @@ public class ProgramManager()
         app.Run();
     }
 
-    private void ValidateRequestData(ApiToken? apiAccessToken, ApiToken? apiAccessRenewToken, UpdateStateRequest request,
-        out EGameState newGameState)
+	IResult APIConnectSession([FromBody] UpdateStateRequest a_request)
+    {
+		var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_token);
+		var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_renew_token);
+		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
+
+		EGameState newGameState;
+		try
+		{
+			if (apiAccessToken == null || apiAccessRenewToken == null)
+				throw new Exception("Invalid JSON format for API tokens");
+			if (!Enum.TryParse(a_request.game_state, true, out newGameState))
+				throw new Exception("Invalid game state: " + a_request.game_state);
+			if (a_request.game_session_info == null)
+				throw new Exception("Missing setup game session info");
+			if (!IsSessionConnectionAccepted(a_request.game_session_info))
+				throw new Exception("Session is not compatible with the available simulations");
+			if(m_sessions.ContainsKey(a_request.game_session_token))
+				throw new Exception("A session with this game_session_token already exists");
+			CheckRequiredSimulations(requiredSimulations);
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine(e.Message);
+			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
+		}
+
+		SimulationSession session = new SimulationSession(
+			a_request.game_session_token, GetServerID(),
+			a_request.game_session_api, apiAccessToken, apiAccessRenewToken, a_request.game_session_info, m_simulationDefinitions,
+			OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose);
+		m_sessions.Add(a_request.game_session_token, session);
+
+		session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
+
+		(OnSetupEvent != null ? OnSetupEvent.Invoke(session) : Task.CompletedTask)
+		.ContinueWith(task => {
+			if (task.IsFaulted)
+			{
+				// output all aggregated exceptions
+				foreach (var exception in task.Exception!.InnerExceptions)
+				{
+					Console.WriteLine(exception.Message);
+				}
+				return; // do not proceed, the "finished setup" trigger will not be fired, just wait for another setup
+			}
+			session.FireStateMachineTrigger(Trigger.FinishedSetup);
+		});
+
+		return Results.Ok(new { success = "1", message = "State updated successfully" });
+	}
+
+    IResult APISetMonth([FromBody] UpdateStateRequest a_request)
+    {
+		if (m_sessions.TryGetValue(a_request.game_session_token, out var session))
+		{
+			session.SetTargetMonth(a_request.month);
+		}
+		else
+		{
+			return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
+		}
+		return Results.Ok(new { success = "1", message = "Month set successfully" });
+	}
+
+	IResult APISetState([FromBody] UpdateStateRequest a_request)
+	{
+		var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_token);
+		var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_renew_token);
+		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
+
+		EGameState newGameState;
+		try
+		{
+			ValidateRequestDataOld(apiAccessToken, apiAccessRenewToken, a_request, out newGameState);
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine(e.Message);
+			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
+		}
+
+		if (m_sessions.TryGetValue(a_request.game_session_token, out var session))
+		{
+			session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
+		}
+		else
+		{
+			return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
+		}
+		return Results.Ok(new { success = "1", message = "State updated successfully" });
+	}
+
+	private void ValidateRequestDataOld(ApiToken? apiAccessToken, ApiToken? apiAccessRenewToken, UpdateStateRequest request,  out EGameState newGameState)
     {
         if (apiAccessToken == null || apiAccessRenewToken == null)
         {
@@ -210,34 +269,52 @@ public class ProgramManager()
         {
             throw new Exception("Missing setup game session info");
         }
-        if(IsSetupAccepted(request.game_session_info) && !m_sessions.ContainsKey(request.game_session_token))
+        if(IsSessionConnectionAccepted(request.game_session_info) && !m_sessions.ContainsKey(request.game_session_token))
         {
             // yes, we accepted this setup, add a new session object
             m_sessions.Add(request.game_session_token, new SimulationSession(
                 request.game_session_token, GetServerID(), 
-                request.game_session_api, apiAccessToken, apiAccessRenewToken, request.game_session_info, GetSimulationDefinitions(request.game_session_info),
+                request.game_session_api, apiAccessToken, apiAccessRenewToken, request.game_session_info, m_simulationDefinitions,
 				OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose));
 		}
     }
 
-	private bool IsSetupAccepted(GameSessionInfo gameSessionInfo)
+	private bool IsSessionConnectionAccepted(GameSessionInfo a_gameSessionInfo)
 	{
-		if (OnQuestionAcceptSetupEvent == null) return true;
-		return OnQuestionAcceptSetupEvent.GetInvocationList().Cast<Func<GameSessionInfo, bool>?>().All(
-			handler => handler != null && handler(gameSessionInfo)
+		if (OnQuestionAcceptSessionEvent == null) return true;
+		return OnQuestionAcceptSessionEvent.GetInvocationList().Cast<Func<GameSessionInfo, bool>?>().All(
+			handler => handler != null && handler(a_gameSessionInfo)
 		);
 	}
 
-	private void ValidateRequestAllowed(string gameSessionToken, Dictionary<string,string>? requiredSimulations = null)
-    {
-        if(m_sessions.TryGetValue(gameSessionToken, out var session))
-        {
-            if (requiredSimulations == null) return;
-            session.CheckRequiredSimulations(requiredSimulations);
-        }
-        else
-			throw new Exception("Invalid game session token, you might need to start setup first");
-    }
+	public void CheckRequiredSimulations(Dictionary<string, string> a_requiredSimulations)
+	{
+		if (a_requiredSimulations == null)
+			return;
+		if (m_simulationDefinitions == null)
+			throw new Exception("No available simulations configured");
+
+		foreach (var required in a_requiredSimulations)
+		{
+			if (m_simulationDefinitions.TryGetValue(required.Key, out var versions))
+			{
+				bool versionFound = false;
+				Version requiredVersion = new Version(required.Value);
+				foreach (Version version in versions)
+				{
+					if (requiredVersion <= version)
+					{
+						versionFound = true;
+						break;
+					}
+				}
+				if (!versionFound)
+					throw new Exception($"Required version of simulation {required.Key} (v{required.Value}) is not available");
+			}
+			else
+				throw new Exception($"Required simulation {required.Key} is not available");
+		}
+	}
     
     private void Tick(object? state)
     {
