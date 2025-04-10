@@ -14,6 +14,7 @@ using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace MSPChallenge_Simulation;
 
@@ -189,11 +190,9 @@ public class ProgramManager()
 
 		SimulationSession session = new SimulationSession(
 			a_request.game_session_token, GetServerID(),
-			a_request.game_session_api, apiAccessToken, apiAccessRenewToken, a_request.game_session_info, m_simulationDefinitions,
-			null, OnSimulationStateEntered, OnSessionClose);
+			a_request.game_session_api, apiAccessToken, apiAccessRenewToken, newGameState, a_request.month, a_request.game_session_info,
+			m_simulationDefinitions, null, OnSimulationStateEntered, OnSessionClose);
 		m_sessions.Add(a_request.game_session_token, session);
-
-		session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
 
 		(OnSessionInitialiseEvent != null ? OnSessionInitialiseEvent.Invoke(session) : Task.CompletedTask)
 		.ContinueWith(task => {
@@ -274,9 +273,9 @@ public class ProgramManager()
         {
             // yes, we accepted this setup, add a new session object
             m_sessions.Add(request.game_session_token, new SimulationSession(
-                request.game_session_token, GetServerID(), 
-                request.game_session_api, apiAccessToken, apiAccessRenewToken, request.game_session_info, m_simulationDefinitions,
-				OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose));
+			request.game_session_token, GetServerID(), 
+                request.game_session_api, apiAccessToken, apiAccessRenewToken, newGameState, request.month, request.game_session_info, 
+				m_simulationDefinitions, OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose));
 		}
     }
 

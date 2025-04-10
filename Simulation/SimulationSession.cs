@@ -67,6 +67,8 @@ public class SimulationSession
 		string a_gameSessionApi, 
 		ApiToken a_apiAccessToken, 
 		ApiToken a_apiAccessRenewToken,
+		EGameState a_newGameState, 
+		int a_targetMonth,
 		GameSessionInfo a_gameSessionInfo,
 		Dictionary<string, List<Version>> a_simulationDefinitions,
 		Action<SimulationSession> a_onSetupStateEntered,
@@ -77,7 +79,9 @@ public class SimulationSession
 		m_onSetupStateEntered = a_onSetupStateEntered;
 		m_onSimulationStateEntered = a_onSimulationStateEntered;
 		m_gameSessionInfo = a_gameSessionInfo;
-		m_onSessionClose = a_onSessionClose;
+		m_onSessionClose = a_onSessionClose; 
+		m_targetMonth = a_targetMonth;
+		m_targetGameState = a_newGameState;
 
 		m_programStateMachine = new ProgramStateMachine();
 		m_programStateMachine.OnSetupStateEnteredEvent += OnSetupStateEntered;
@@ -88,6 +92,7 @@ public class SimulationSession
 		m_mspClient.SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
+		m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
 
 		var nameValueCollection = new NameValueCollection();
 		foreach (var simulationDefinition in a_simulationDefinitions)
