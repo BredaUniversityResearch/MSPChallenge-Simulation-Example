@@ -21,7 +21,7 @@ const string API_GET_LAYER_VECTOR = "/api/Layer/Get";   //get geometry objects f
 var program = new ProgramManager(args);
 
 program.OnQuestionAcceptSessionEvent += OnQuestionAcceptSetupEvent;
-program.OnSetupEvent += SetupSession;
+program.OnSessionInitialiseEvent += InitialiseSession;
 program.OnSimulationStateEnteredEvent += SessionSimulationStateEntered;
 program.AddSimulationDefinition("SandExtraction", new Version("1.0.0"));
 program.Run();
@@ -34,7 +34,7 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 }
 
 // Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
-Task SetupSession(SimulationSession a_session)
+Task InitialiseSession(SimulationSession a_session)
 {
 	Task t1 = GetLayerMeta(a_session, "ValueMap,Bathymetry", 0);
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth", 1);
@@ -183,9 +183,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	float bathRealWidthPerPixel = bathRasterRealWidth / bathRaster.Width;
 	float bathRealHeightPerPixel = bathRasterRealHeight / bathRaster.Height;
 
-	//TODO: only do this for new/changed pits
 	foreach (SubEntityObject pit in a_pitGeometry)
 	{
+		if (pit.implementation_time != a_session.CurrentMonth + 1)
+		{
+			Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
+			continue;
+		}
+
 		double pitVolume = 0f;
 		double pitDTS = 0f;
 		int pitDepth;

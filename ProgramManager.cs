@@ -34,7 +34,7 @@ public class ProgramManager()
 
 	// Define public events
     public event Func<GameSessionInfo, bool>? OnQuestionAcceptSessionEvent;
-    public event Func<SimulationSession, Task>? OnSetupEvent;
+    public event Func<SimulationSession, Task>? OnSessionInitialiseEvent;
     public event Func<SimulationSession, Task>? OnSimulationStateEnteredEvent;
     public event Action<double /* deltaTimeSec */, SimulationSession>? OnTickEvent;
 
@@ -194,7 +194,7 @@ public class ProgramManager()
 
 		session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
 
-		(OnSetupEvent != null ? OnSetupEvent.Invoke(session) : Task.CompletedTask)
+		(OnSessionInitialiseEvent != null ? OnSessionInitialiseEvent.Invoke(session) : Task.CompletedTask)
 		.ContinueWith(task => {
 			if (task.IsFaulted)
 			{
@@ -348,7 +348,7 @@ public class ProgramManager()
 
 	private void OnSetupStateEntered(SimulationSession a_session)
 	{
-		(OnSetupEvent != null ? OnSetupEvent.Invoke(a_session) : Task.CompletedTask)
+		(OnSessionInitialiseEvent != null ? OnSessionInitialiseEvent.Invoke(a_session) : Task.CompletedTask)
         .ContinueWith(task => {
 			if (task.IsFaulted)
 			{
