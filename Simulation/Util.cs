@@ -1,27 +1,24 @@
 ﻿using System;
-using ClipperLib;
+using Clipper2Lib;
 using System.Numerics;
 
 namespace MSPChallenge_Simulation.Simulation
 {
 	public static class Util
 	{
-		const float INT_CONVERSION = 100000000000000.0f;
-
-
-		public static float[,] GetPolygonOverlap(float[][] a_polygon1, float[,] a_polygon2)
+		public static PathsD GetPixelPolygonOverlap(RectD a_pixel, PathsD a_polygon)
 		{
-			Clipper co = new Clipper();
-			co.AddPath(FloatSparseToIntPoint(a_polygon1), PolyType.ptClip, true);
-			co.AddPath(Float2DToIntPoint(a_polygon2), PolyType.ptSubject, true);
+			return Clipper.RectClip(a_pixel, a_polygon);
+		}
 
-			List<List<IntPoint>> csolution = new List<List<IntPoint>>();
-			co.Execute(ClipType.ctIntersection, csolution);
-			if (csolution.Count > 0)
-			{
-				return IntPointToVector(csolution[0]);
-			}
-			return new float[0, 0];
+		public static PathsD GetPixelPolygonOverlap(RectD a_pixel, PathD a_polygon)
+		{		
+			return Clipper.RectClip(a_pixel, a_polygon);
+		}
+
+		public static double GetPixelPolygonOverlapArea(RectD a_pixel, PathD a_polygon)
+		{
+			return GetPolygonArea(Clipper.RectClip(a_pixel, a_polygon));
 		}
 
 		public static float GetRectangleOverlapArea(float[,] a_rectA, float[,] a_rectB)
@@ -31,68 +28,25 @@ namespace MSPChallenge_Simulation.Simulation
 				Math.Max(0, Math.Min(a_rectA[2, 1], a_rectB[2, 1]) - Math.Max(a_rectA[0, 1], a_rectB[0, 1]));
 		}
 
-		public static float GetPolygonOverlapArea(float[][] a_polygon1, float[,] a_polygon2)
+		public static double GetPolygonArea(PathsD a_polygons)
 		{
-			return GetPolygonArea(GetPolygonOverlap(a_polygon1, a_polygon2));
+			double area = 0;
+			foreach (PathD poly in a_polygons)
+			{
+				area += GetPolygonArea(poly);
+			}
+			return area;
 		}
 
-		public static float GetPolygonArea(float[,] polygon)
+		public static double GetPolygonArea(PathD a_polygon)
 		{
-			float area = 0;
-			for (int i = 0; i < polygon.Length; ++i)
+			double area = 0;
+			for (int i = 0; i < a_polygon.Count; ++i)
 			{
-				int j = (i + 1) % polygon.Length;
-				area += polygon[i, 0] * polygon[j, 1] - polygon[i, 1] * polygon[j, 0];
+				int j = (i + 1) % a_polygon.Count;
+				area += a_polygon[i].x * a_polygon[j].y - a_polygon[i].y * a_polygon[j].x;
 			}
-			return Math.Abs(area * 0.5f);
-		}
-
-		public static float GetPolygonAreaJagged(float[][] polygon)
-		{
-			float area = 0;
-			for (int i = 0; i < polygon.Length; ++i)
-			{
-				int j = (i + 1) % polygon.Length;
-				area += polygon[i][0] * polygon[j][1] - polygon[i][1] * polygon[j][0];
-			}
-			return Math.Abs(area * 0.5f);
-		}
-
-		public static float[,] IntPointToVector(List<IntPoint> points)
-		{
-			float[,] verts = new float[points.Count, 2];
-
-			for (int i = 0; i < points.Count; i++)
-			{
-				verts[i, 0] = points[i].X / INT_CONVERSION;
-				verts[i, 1] = points[i].Y / INT_CONVERSION;
-			}
-
-			return verts;
-		}
-
-		public static List<IntPoint> FloatSparseToIntPoint(float[][] points)
-		{
-			List<IntPoint> verts = new List<IntPoint>();
-
-			for (int i = 0; i < points.Length; i++)
-			{
-				verts.Add(new IntPoint(points[i][0] * INT_CONVERSION, points[i][1] * INT_CONVERSION));
-			}
-
-			return verts;
-		}
-
-		public static List<IntPoint> Float2DToIntPoint(float[,] points)
-		{
-			List<IntPoint> verts = new List<IntPoint>();
-
-			for (int i = 0; i < points.Length; i++)
-			{
-				verts.Add(new IntPoint(points[i, 0] * INT_CONVERSION, points[i, 1] * INT_CONVERSION));
-			}
-
-			return verts;
+			return Math.Abs(area * 0.5d);
 		}
 
 		public static float GetSquaredDistanceToLine(Vector2 point, Vector2 a_lineStart, Vector2 a_lineEnd)

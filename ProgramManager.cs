@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using TaskExtensions = MSPChallenge_Simulation.Extensions.TaskExtensions;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using System;
 
 namespace MSPChallenge_Simulation;
 
@@ -189,7 +190,7 @@ public class ProgramManager()
 		SimulationSession session = new SimulationSession(
 			a_request.game_session_token, GetServerID(),
 			a_request.game_session_api, apiAccessToken, apiAccessRenewToken, a_request.game_session_info, m_simulationDefinitions,
-			OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose);
+			null, OnSimulationStateEntered, OnSessionClose);
 		m_sessions.Add(a_request.game_session_token, session);
 
 		session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
@@ -200,12 +201,12 @@ public class ProgramManager()
 			{
 				// output all aggregated exceptions
 				foreach (var exception in task.Exception!.InnerExceptions)
-				{
 					Console.WriteLine(exception.Message);
-				}
-				return; // do not proceed, the "finished setup" trigger will not be fired, just wait for another setup
+				Console.WriteLine($"Session Initialisation for session ({session.SessionToken}) failed. Session will be removed.");
+				m_sessions.Remove(session.SessionToken);
 			}
-			session.FireStateMachineTrigger(Trigger.FinishedSetup);
+			else
+				session.FireStateMachineTrigger(Trigger.FinishedSetup);
 		});
 
 		return Results.Ok(new { success = "1", message = "State updated successfully" });
