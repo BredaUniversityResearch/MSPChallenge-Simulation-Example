@@ -49,6 +49,20 @@ namespace MSPChallenge_Simulation.Simulation
 			return Math.Abs(area * 0.5d);
 		}
 
+		public static double GetPolygonPerimeter(PathD a_polygon)
+		{
+			double x = a_polygon[0].x - a_polygon[a_polygon.Count-1].x;
+			double y = a_polygon[0].y - a_polygon[a_polygon.Count-1].y;
+			double result = Math.Sqrt(x * x + y * y);
+			for(int i = 1; i < a_polygon.Count; i++)
+			{
+				x = a_polygon[i].x - a_polygon[i-1].x;
+				y = a_polygon[i].y - a_polygon[i-1].y;
+				result += Math.Sqrt(x * x + y * y);
+			}
+			return result;
+		}
+
 		public static float GetSquaredDistanceToLine(Vector2 point, Vector2 a_lineStart, Vector2 a_lineEnd)
 		{
 			// Uses Vector2 to make use of LengthSquared and Dot functions

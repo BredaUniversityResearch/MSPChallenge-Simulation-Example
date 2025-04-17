@@ -84,6 +84,8 @@ public class MspClient
                 throw wrapperTask.Exception;
             }
             var wrapper = wrapperTask.Result;
+            //Console.WriteLine($"Received results from URI: {uri}");
+            //Console.WriteLine(wrapper.payload.ToString());
             var result = wrapper.payload.ToObject<TTargetType>();
             try {
                 if (result == null) throw new Exception($"Post request for {uri} failed: JSON Decode Failed");
@@ -97,7 +99,7 @@ public class MspClient
         });
     }
 
-    private Task<ApiResponseWrapper> HttpPostInternal(
+	private Task<ApiResponseWrapper> HttpPostInternal(
         string uri,
         NameValueCollection postValues,
         NameValueCollection? headers = null

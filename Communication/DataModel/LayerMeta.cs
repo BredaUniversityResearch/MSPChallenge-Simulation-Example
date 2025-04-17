@@ -14,7 +14,7 @@ public class LayerMeta
 		layer_geotype = "polygon";
 		layer_short = "Test Layer";
 		layer_group = "";
-		layer_type = new Dictionary<int, EntityTypeValues>();
+		layer_type = new List<EntityTypeValues>();
 		layer_category = "Test Category";
 		layer_subcategory = "aquaculture";
 		layer_active = "1";
@@ -28,7 +28,7 @@ public class LayerMeta
 	public string layer_geotype { get; set; }
 	public string layer_short { get; set; }
 	public string layer_group { get; set; }
-	public Dictionary<int, EntityTypeValues> layer_type { get; set; }
+	public List<EntityTypeValues> layer_type { get; set; }
 	public string layer_category { get; set; }
 	public string layer_subcategory { get; set; }
 	public string layer_active { get; set; }

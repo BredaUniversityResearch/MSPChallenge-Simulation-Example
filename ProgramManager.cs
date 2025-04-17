@@ -349,7 +349,8 @@ public class ProgramManager()
 	private void OnSetupStateEntered(SimulationSession a_session)
 	{
 		(OnSessionInitialiseEvent != null ? OnSessionInitialiseEvent.Invoke(a_session) : Task.CompletedTask)
-        .ContinueWith(task => {
+        .ContinueWith(async task => {
+			await task;
 			if (task.IsFaulted)
 			{
 				// output all aggregated exceptions

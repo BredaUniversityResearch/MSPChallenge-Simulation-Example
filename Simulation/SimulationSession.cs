@@ -247,8 +247,36 @@ public class SimulationSession
 
 	private Task SubmitResults()
 	{
-		if (m_kpis.Count == 0) return Task.CompletedTask;
+		return Task.Run(async () =>
+		{
+			if (m_newSandDepthRaster != null)
+			{
+				await m_mspClient.HttpPost(API_SET_RASTER,
+					new NameValueCollection { { "layer_name", m_sandDepthMeta.layer_name }, { "image_data", m_newSandDepthRaster } });
+			}
+			if (m_newSandDepthRaster != null)
+			{
+				await m_mspClient.HttpPost(API_SET_RASTER,
+					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster } });
+			}
+			if (m_kpis == null)
+			{
+				Console.WriteLine("No KPIs set, sending empty KPI Set request");
+				await m_mspClient.HttpPost(API_SET_KPI,
+					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(new List<KPI>()) } },
+					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
+			}
+			else
+			{
+				Console.WriteLine($"Setting {m_kpis.Count} KPIs");
+				await m_mspClient.HttpPost(API_SET_KPI,
+					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
+					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
+			}
+			Console.WriteLine($"Results submitted for month: {CurrentMonth}");
+		});
 
+		if (m_kpis == null || m_kpis.Count == 0) return Task.CompletedTask;
 		return m_mspClient.HttpPost(
 			API_SET_RASTER, 
 			new NameValueCollection { { "layer_name", m_sandDepthMeta.layer_name}, { "image_data", m_newSandDepthRaster } }

@@ -4,8 +4,14 @@ public static class TaskExtensions
 {
     public delegate void ExceptionHandlerDelegate(Exception exception);
     private static Dictionary<string, List<ExceptionHandlerDelegate>> _events = new();
-    
-    public static void RegisterExceptionHandler<TException>(ExceptionHandlerDelegate handler) where TException : Exception
+
+	public static async IAsyncEnumerable<T> AwaitAll<T>(this IEnumerable<Func<Task<T>>> tasks)
+	{
+		foreach (var task in tasks)
+			yield return await task();
+	}
+
+	public static void RegisterExceptionHandler<TException>(ExceptionHandlerDelegate handler) where TException : Exception
     {
         var key = typeof(TException).FullName;
         if (key == null) return;
