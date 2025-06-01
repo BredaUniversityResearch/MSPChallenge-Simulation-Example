@@ -175,12 +175,59 @@ If that works, you can start implementing your own simulation by modifying the e
     Entering AwaitingNextMonth state
     Current state: AwaitingNextMonth
     ```
+    > [!TIP]
+    > If you created the game session without the watchdog server running and connected, you can still do so by opening the "Session Details" in the Server Manager. For more details read [Game session watchdog server connections](#game-session-watchdog-server-connections).
+    
 11. Congratulations, you have successfully registered your external watchdog server to the
     [MSP Challenge server](https://github.com/BredaUniversityResearch/MSPChallenge-Server), and created a game session.
     Either go ahead and implement your own simulation, or continue on playing with the ***example*** simulation.
     - For playing with the ***example*** simulation, check the [Usage](#usage) section.
     - For implementing your own simulation, first read the [Watchdog program.cs](#watchdog-programcs) section to
       understand the structure of the program.
+
+# Game session watchdog server connections
+
+You can connect the watchdog server to a game session, even after the game session has been created,
+but before the first simulation run.
+To do so, follow these steps:
+
+1. Open the Server Manager web application in your browser, for a local development setup,
+   the default url is: http://localhost/manager.
+2. Open the "Session Details" of the game session. You can open the "Session Details" by clicking on the "information"-icon of the game session in the list of game sessions under "Quick Actions".
+3. Under the "Watchdog server" section, you will see a list of registered watchdog servers. Also note the "Simulation state" of the game session. e.g. "setup" or "pause".
+4. Depending on the current simulation state, you can connect to the watchdog server by pressing the "Connect"-button.
+   - If the simulation state is "setup", you can connect to the watchdog server
+   - If the simulation state is "pause", you can reconnect to the watchdog server
+   - If the simulation state is "unregistered", you need to re-create the game session to connect to the watchdog server
+5. See more details with screenshots below.
+
+From the game session perspective a watchdog server can have any of these states:
+1. Connecting to watchdog during game session creation
+   <details>
+   <summary> <b>Click here to see screenshot</b> </summary>
+   <img src="README-source/watchdog-server-connecting.png" alt="watchdog-server-connecting.png" />
+   </details>
+2. The game session was created but connection to external watchdog could not be established. The simulation state is still in "setup".
+   During this state the watchdog server can still be connected to using a "Connect"-button
+   <details>
+   <summary> <b>Click here to see screenshot</b> </summary>
+   <img src="README-source/watchdog-server-register.png" alt="watchdog-server-register.png" />
+   </details>
+3. The watchdog server is connected, or still being connected to. Simulations have been registered.
+   <details>
+   <summary> <b>Click here to see screenshot</b> </summary>
+   <img src="README-source/watchdog-server-connected.png" alt="watchdog-server-connected.png" />
+   </details>
+4. There is a watchdog disconnection during simulation (pause/play/fast forward). In below screenshot the state is "pause". Allows re-connection. Note that the external simulation will calculate up to the current month on re-connection
+   <details>
+   <summary> <b>Click here to see screenshot</b> </summary>
+   <img src="README-source/watchdog-server-reconnect.png" alt="watchdog-server-reconnect.png" />
+   </details>
+5. The state shows "unregistered" once you go into simulation without any previous connections. You need to re-create the session to setup if you need the external watchdog connected.
+   <details>
+   <summary> <b>Click here to see screenshot</b> </summary>
+   <img src="README-source/watchdog-server-unregistered.png" alt="watchdog-server-unregistered.png" />
+   </details>
 
 # Usage
 
