@@ -233,6 +233,59 @@ public class ProgramManager()
 		EGameState newGameState;
 		try
 		{
+			if (apiAccessToken == null || apiAccessRenewToken == null)
+				throw new Exception("Invalid JSON format for API tokens");
+			if (!Enum.TryParse(a_request.game_state, true, out newGameState))
+				throw new Exception("Invalid game state: " + a_request.game_state);
+			if (a_request.game_session_info == null)
+				throw new Exception("Missing setup game session info");
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine(e.Message);
+			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
+		}
+
+
+		if (m_sessions.TryGetValue(a_request.game_session_token, out var session))
+		{
+			session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
+		}
+		else if(IsSessionConnectionAccepted(a_request.game_session_info))
+		{
+			//try
+			//{
+			//	CheckRequiredSimulations(requiredSimulations);
+			//}
+			//catch (Exception e)
+			//{
+			//	Console.WriteLine(e.Message);
+			//	return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
+			//}
+
+			//Create new session
+			SimulationSession newSession = new SimulationSession(
+				a_request.game_session_token, GetServerID(),
+				a_request.game_session_api, apiAccessToken, apiAccessRenewToken, newGameState, a_request.month, a_request.game_session_info,
+				m_simulationDefinitions, OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose);
+			m_sessions.Add(a_request.game_session_token, newSession);
+		}
+		else
+		{
+			return Results.BadRequest(new { success = "0", message = "No active session for provided session token. Not valid for a new session." });
+		}
+		return Results.Ok(new { success = "1", message = "State updated successfully" });
+	}
+
+	IResult APISetStateOld([FromBody] UpdateStateRequest a_request)
+	{
+		var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_token);
+		var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_renew_token);
+		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
+
+		EGameState newGameState;
+		try
+		{
 			ValidateRequestDataOld(apiAccessToken, apiAccessRenewToken, a_request, out newGameState);
 		}
 		catch (Exception e)
@@ -263,7 +316,7 @@ public class ProgramManager()
             throw new Exception("Invalid game state: " + request.game_state);
         }
 
-        if (newGameState != EGameState.Setup) return;
+        //if (newGameState != EGameState.Setup) return;
         
         if (request.game_session_info == null)
         {
@@ -355,10 +408,9 @@ public class ProgramManager()
 			{
 				// output all aggregated exceptions
 				foreach (var exception in task.Exception!.InnerExceptions)
-				{
 					Console.WriteLine(exception.Message);
-				}
-				return; // do not proceed, the "finished setup" trigger will not be fired, just wait for another setup
+				Console.WriteLine($"Session Initialisation for session ({a_session.SessionToken}) failed. Session will be removed.");
+				m_sessions.Remove(a_session.SessionToken);
 			}
 			a_session.FireStateMachineTrigger(Trigger.FinishedSetup);
 		});

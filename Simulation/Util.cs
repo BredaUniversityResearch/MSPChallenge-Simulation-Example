@@ -83,7 +83,7 @@ namespace MSPChallenge_Simulation.Simulation
 					new Vector2(a_pointX, a_pointY),
 					new Vector2(a_lineString[i][0], a_lineString[i][1]),
 					new Vector2(a_lineString[i + 1][0], a_lineString[i + 1][1])));
-			return result;
+			return (float)Math.Sqrt(result);
 		}
 	}
 }

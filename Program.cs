@@ -22,10 +22,10 @@ const string API_GET_LAYER_VECTOR = "/api/Layer/GetGeometry";   //get geometry o
 
 var program = new ProgramManager(args);
 
+program.AddSimulationDefinition("SandExtraction", new Version("1.0.0"));
 program.OnQuestionAcceptSessionEvent += OnQuestionAcceptSetupEvent;
 program.OnSessionInitialiseEvent += InitialiseSession;
 program.OnSimulationStateEnteredEvent += SessionSimulationStateEntered;
-program.AddSimulationDefinition("SandExtraction", new Version("1.0.0"));
 program.Run();
 return;
 
@@ -39,7 +39,7 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 Task InitialiseSession(SimulationSession a_session)
 {
 	Task t1 = GetLayerMeta(a_session, "ValueMap,Bathymetry", 0);
-	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth", 1);
+	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
 	Task t4 = GetLayerMeta(a_session, "Line,Coast", 3);
 	//TODO: get initial TotalDTS and TotalExtractedVolume
@@ -117,9 +117,9 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 			float minDistance = float.MaxValue;
 			foreach(SubEntityObject line in a_shoreLine)
 			{
-				Math.Min(minDistance, Util.PointDistanceFromLineString(originX + x * widthPerPixel, originY + y * heightPerPixel, line.geometry));
+				minDistance = Math.Min(minDistance, Util.PointDistanceFromLineString(originX + x * widthPerPixel, originY + y * heightPerPixel, line.geometry));
 			}
-			a_session.m_distanceToShoreRaster[x, y] = minDistance / 1000f;
+			a_session.m_distanceToShoreRaster[x, y] = minDistance;
 		}
 	}
 	Console.WriteLine($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
@@ -351,6 +351,11 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 	a_session.m_totalDTS += monthlyDTS;
 	a_session.m_totalExtractedVolume += monthlyExtractedVolume;
+	double monthlyAVGDTS = 0d;
+	if(monthlyExtractedVolume > 0d)
+	{
+		monthlyAVGDTS = monthlyDTS / monthlyExtractedVolume;
+	}
 
 	//Set extraction KPIs
 	a_session.m_kpis = new List<KPI>() { 
@@ -371,21 +376,22 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			country = -1 
         },
 		new KPI() {
-			name = "Monthly DTS",
+			name = "Monthly AVG DTS",
 			type = "EXTERNAL",
-			value = monthlyDTS,
-			unit = "km",
-			month = a_session.CurrentMonth,
-			country = -1 
-        },
-		new KPI() {
-			name = "Total DTS",
-			type = "EXTERNAL",
-			value = a_session.m_totalDTS,
-			unit = "km",
+			value = monthlyAVGDTS,
+			unit = "m",
 			month = a_session.CurrentMonth,
 			country = -1 
         }
+		//,
+		//new KPI() {
+		//	name = "Total DTS",
+		//	type = "EXTERNAL",
+		//	value = a_session.m_totalDTS,
+		//	unit = "km",
+		//	month = a_session.CurrentMonth,
+		//	country = -1 
+  //      }
 	};
 	Console.WriteLine($"Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} new pits simulated.");
 }

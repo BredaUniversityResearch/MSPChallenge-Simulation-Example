@@ -103,6 +103,12 @@ public class SimulationSession
 			API_SET_SIM_DEFINITIONS, 
 			nameValueCollection,
 			new NameValueCollection { { "X-Remove-Previous", "true" } } );
+
+		//Force trigger if we are loading into a game past setup phase
+		if (a_newGameState != EGameState.Setup) 
+		{
+			m_programStateMachine?.Fire(Trigger.SetupGame);
+		}
 	}
 
 	public void UpdateState(ApiToken a_apiAccessToken, ApiToken a_apiAccessRenewToken, EGameState a_newGameState, int a_targetMonth)
@@ -120,6 +126,7 @@ public class SimulationSession
 		m_targetMonth = a_targetMonth;
 		Console.WriteLine($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
 	}
+
 
 	public void TickSession(double a_deltaTimeSec)
 	{
@@ -269,6 +276,8 @@ public class SimulationSession
 			else
 			{
 				Console.WriteLine($"Setting {m_kpis.Count} KPIs");
+				foreach (var kpi in m_kpis)
+					Console.WriteLine($"{kpi.name}:{kpi.value} {kpi.unit}");
 				await m_mspClient.HttpPost(API_SET_KPI,
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
