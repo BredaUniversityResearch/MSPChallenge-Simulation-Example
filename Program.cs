@@ -15,6 +15,7 @@ using System.Reflection.Emit;
 using Microsoft.AspNetCore.Http;
 
 const float BATHYMETRY_MAX_DEPTH = 1000f;
+const float SANDDEPTH_MAX_DEPTH = 12f;
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
 const string API_GET_LAYER_META = "/api/Layer/Meta";    //get layer metadata for layer with "layer_id"
@@ -172,9 +173,13 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 {
 	/* General algorithm overview:
 	 * Per !changed! pit:
+	 *		Per depth layer (1m):
+	 *			Iterate through 'available sand depth' raster pixels that overlap the pit's bounds
+	 *				Calculate sand volume extracted for pixel at depth layer (pit depth, available sand, overlap of pit with pixel)
+	 *			Offset remaining pit contour to next depth layer
 	 *		Iterate through 'available sand depth' raster pixels that overlap the pit's bounds
-	 *			Calculate sand volume extracted for pixel (pit depth, available sand, overlap of pit with pixel)
 	 *			Update pixel with extracted amount
+	 *			Calculate avg DTS per pixel, forming AVG DTS for pit
 	 *		Iterate through 'bathymetry' raster pixels that overlap the pit's bounds
 	 *			Determine the avg actual extraction depth for the pixel (using values calculated above)
 	 *			Update pixel with extracted amount
@@ -186,13 +191,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 
 	double monthlyExtractedVolume = 0d;
-	double monthlyDTS = 0d;
+	double monthlyTotalDTS = 0d;
 
 	//Raster dimensions
 	double sdRasterRealWidth = a_sandDepthRaster.displayed_bounds[1][0] - a_sandDepthRaster.displayed_bounds[0][0];
 	double sdRasterRealHeight = a_sandDepthRaster.displayed_bounds[1][1] - a_sandDepthRaster.displayed_bounds[0][1];
 	double sdRealWidthPerPixel = sdRasterRealWidth / sdRaster.Width;
 	double sdRealHeightPerPixel = sdRasterRealHeight / sdRaster.Height;
+	double sdAreaPerPixel = sdRealWidthPerPixel * sdRealHeightPerPixel;
 	double bathRasterRealWidth = a_bathymetryRaster.displayed_bounds[1][0] - a_bathymetryRaster.displayed_bounds[0][0];
 	double bathRasterRealHeight = a_bathymetryRaster.displayed_bounds[1][1] - a_bathymetryRaster.displayed_bounds[0][1];
 	double bathRealWidthPerPixel = bathRasterRealWidth / bathRaster.Width;
@@ -207,7 +213,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		//	continue;
 		//}
 
-		double pitVolume = 0f;
+		double totalPitVolume = 0f;
 		int pitDepth;
 		if (pit.data == null || !pit.data.TryGetValue("PitExtractionDepth", out string pitDepthStr) || !int.TryParse(pitDepthStr, out pitDepth))
 		{
@@ -219,10 +225,16 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		{
 			Console.WriteLine($"Missing pit slope for pit with ID={pit.id}, using default slope of 1/1 (45).");
 		}
-		PathD pitPath = new PathD(pit.geometry.Length);
+		PathD fullPitPath = new PathD(pit.geometry.Length);
+		//PathD currentPitPath = new PathD(pit.geometry.Length);
 		foreach (float[] point in pit.geometry)
-			pitPath.Add(new PointD(point[0], point[1]));
-		double pitArea = Util.GetPolygonArea(pitPath);
+		{
+			fullPitPath.Add(new PointD(point[0], point[1]));
+			//currentPitPath.Add(new PointD(point[0], point[1]));
+		}
+		double pitArea = Util.GetPolygonArea(fullPitPath);
+		PathsD currentPitPath = new PathsD();
+		currentPitPath.Add(fullPitPath);
 
 		//Determine pit bounding box
 		double pitXMin = float.PositiveInfinity;
@@ -243,43 +255,96 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		int sdEndX = (int)Math.Ceiling((pitXMax - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width);
 		int sdEndY = (int)Math.Ceiling((pitYMax - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height);
 
+		//Track current pit iteration process
+		bool[,] pixelComplete = new bool[sdEndX - sdStartX, sdEndY - sdStartY];
+		int activePixels = (sdEndX - sdStartX) * (sdEndY - sdStartY);
+		int currentDepth = 0;
+
 		//Actual extraction depth used to update the bathymetry after the sd raster has been updated
-		float[,] extractionDepth = new float[sdEndX - sdStartX, sdEndY - sdStartY];
-		double averageDepth = 0;
+		double[,] volumePerPixel = new double[sdEndX - sdStartX, sdEndY - sdStartY];
 		double averageDTS = 0;
 
-		//Iterate over sanddepth pixel overlapping pit bb
+		while (activePixels > 0)
+		{
+			currentDepth += 1;
+			if (currentDepth > pitDepth)
+				break;
+
+			//Iterate over sanddepth pixel overlapping pit boundingbox
+			for (int x = sdStartX; x < sdEndX; x++)
+			{
+				if (activePixels == 0)
+					break;
+
+				for (int y = sdStartY; y < sdEndY; y++)
+				{
+					if (pixelComplete[x - sdStartX, y - sdStartY])
+						continue;
+
+					float rasterDepth = GetSandDepthForRaster(sdRaster[x, y].R, a_session);
+
+					RectD pixelRect = new RectD(
+						a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel,
+						a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel,
+						a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel,
+						a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel);
+					pixelRect.Height = sdRealHeightPerPixel; //Height of the rect is not correct by default, this fixes
+
+					double overlapArea = Util.GetPixelPolygonOverlapArea(pixelRect, currentPitPath); //Rect overlap is faster than poly
+
+					if (overlapArea <= 0d)
+					{
+						//No overlap with pit at current depth, no volume and can be skipped
+						//Cutting from current pit path not needed as it won't affect the slope
+						pixelComplete[x - sdStartX, y - sdStartY] = true;
+						activePixels--;
+						continue;
+					}
+
+					if (rasterDepth < currentDepth)
+					{
+						//Pit depth does not cover the full 1m of the current layer, calculate remaining volume
+						totalPitVolume += overlapArea * (rasterDepth - currentDepth - 1f);
+						pixelComplete[x - sdStartX, y - sdStartY] = true;
+						activePixels--;
+						//Then cut out of current pit path, so its correctly used for slopes
+						PathD pixelPath = new PathD()
+							{
+								new PointD(a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel),
+								new PointD(a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel),
+								new PointD(a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel),
+								new PointD(a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel, a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel)
+							};
+						currentPitPath = Util.ClipFromPolygon(currentPitPath, pixelPath);
+					}
+					else
+					{
+						//Remaining pixel area is deeper then 1m slice, add full 1m overlap area
+						totalPitVolume += overlapArea;
+					}
+				}
+			}
+			//Offset current pit path by slope amount to create next layer
+			currentPitPath = Util.OffsetPolygon(currentPitPath, pitSlope);
+			if (currentPitPath == null || currentPitPath.Count == 0)
+			{
+				break;
+			}
+		}
+
+		//Update SD raster and get pit's average DTS
 		for (int x = sdStartX; x < sdEndX; x++)
 		{
 			for (int y = sdStartY; y < sdEndY; y++)
 			{
-				RectD pixelRect = new RectD(
-					a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel,
-					a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel,
-					a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel,
-					a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel);
-				pixelRect.Height = sdRealHeightPerPixel; //Height of the rect is not correct by default...?
-
-				float rasterDepth = (float)sdRaster[x, y].R / 256f * 12f; //TODO: replace with proper scale
-				float actualDepth = Math.Min(rasterDepth, pitDepth);
-				double overlapArea = Util.GetPixelPolygonOverlapArea(pixelRect, pitPath);
-				double extractedVolume = overlapArea * actualDepth;
-				double pixelCoverage = overlapArea / pitArea;
-
-				//Extracted volume / (total volume in pixel) * pixel value
-				byte newSDRasterValue = (byte)(extractedVolume / (sdRealWidthPerPixel * sdRealHeightPerPixel * rasterDepth) * sdRaster[x, y].R); //TODO: replace with proper scale
-
-				extractionDepth[x - sdStartX, y - sdStartY] = actualDepth;
-				sdRaster[x, y] = new Rgba32(newSDRasterValue, 0, 0);
-				averageDepth += actualDepth * pixelCoverage; //Add pre-averaged depth
-				averageDTS += a_session.m_distanceToShoreRaster[x, y] * pixelCoverage; //Add pre-averaged DTS
-				pitVolume += extractedVolume;
+				double oldDepth = GetSandDepthForRaster(sdRaster[x, y].R, a_session);
+				sdRaster[x, y] = new Rgba32(GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session), 0, 0);
+				averageDTS += volumePerPixel[x-sdStartX, y-sdStartY] / totalPitVolume * a_session.m_distanceToShoreRaster[x, y];
 			}
 		}
-		//Correct for slopes: Depth * (slope * depth = offset) * circumfence * (correction for corner overlap)
-		pitVolume -= averageDepth * averageDepth * pitSlope / 2d * Util.GetPolygonPerimeter(pitPath) * 0.66667d;
-		monthlyExtractedVolume += pitVolume;
-		monthlyDTS += pitVolume * averageDTS;
+
+		monthlyExtractedVolume += totalPitVolume;
+		monthlyTotalDTS += totalPitVolume * averageDTS;
 
 		//Calculates the range of bathymetry raster pixels that overlap with the pit's bounding box.
 		int bathStartX = (int)Math.Floor((pitXMin - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * bathRaster.Width);
@@ -298,7 +363,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 					a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel,
 					a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel);
 
-				PathsD  bathPitOverlap = Util.GetPixelPolygonOverlap(bathPixelRect, pitPath);
+				PathsD  bathPitOverlap = Util.GetPixelPolygonOverlap(bathPixelRect, fullPitPath);
 				double bathPitOverlapArea = Util.GetPolygonArea(bathPitOverlap);
 				if (bathPitOverlapArea < 0.001f)
 					continue;
@@ -324,7 +389,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 						//Find overlap of all 3 (pit∪bath∪sd)
 						double threeOverlapArea = Util.GetPolygonArea(Util.GetPixelPolygonOverlap(sdPixelRect, bathPitOverlap));
 						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with (bath∪pit) coverage fraction
-						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * extractionDepth[depthX - sdStartX, depthY - sdStartY];
+						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel;
 					}
 				}
 
@@ -349,12 +414,12 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	stream2.Dispose();
 	bathRaster.Dispose();
 
-	a_session.m_totalDTS += monthlyDTS;
+	a_session.m_totalDTS += monthlyTotalDTS;
 	a_session.m_totalExtractedVolume += monthlyExtractedVolume;
 	double monthlyAVGDTS = 0d;
 	if(monthlyExtractedVolume > 0d)
 	{
-		monthlyAVGDTS = monthlyDTS / monthlyExtractedVolume;
+		monthlyAVGDTS = monthlyTotalDTS / monthlyExtractedVolume;
 	}
 
 	//Set extraction KPIs
@@ -408,4 +473,18 @@ byte GetBathymeteryValueForDepth(float a_depth, SimulationSession a_session)
 	//TODO: switch to dynamic scale when implemented in server
 	return (byte)(a_depth / BATHYMETRY_MAX_DEPTH * 256f);
 	return a_session.m_bathymetryMeta.scale.ValueToPixel(a_depth);
+}
+
+float GetSandDepthForRaster(byte a_value, SimulationSession a_session)
+{
+	//TODO: switch to dynamic scale when implemented in server
+	return a_value / 256f * SANDDEPTH_MAX_DEPTH;
+	return a_session.m_sandDepthMeta.scale.PixelToValue(a_value);
+}
+
+byte GetSandValueForDepth(double a_depth, SimulationSession a_session)
+{
+	//TODO: switch to dynamic scale when implemented in server
+	return (byte)(a_depth / SANDDEPTH_MAX_DEPTH * 256f);
+	return a_session.m_sandDepthMeta.scale.ValueToPixel((float)a_depth);
 }

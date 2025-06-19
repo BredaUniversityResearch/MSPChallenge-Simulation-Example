@@ -1,6 +1,7 @@
 ﻿using System;
 using Clipper2Lib;
 using System.Numerics;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace MSPChallenge_Simulation.Simulation
 {
@@ -16,9 +17,14 @@ namespace MSPChallenge_Simulation.Simulation
 			return Clipper.RectClip(a_pixel, a_polygon);
 		}
 
-		public static double GetPixelPolygonOverlapArea(RectD a_pixel, PathD a_polygon)
+		public static double GetPixelPolygonOverlapArea(RectD a_pixel, PathsD a_polygon)
 		{
 			return GetPolygonArea(Clipper.RectClip(a_pixel, a_polygon));
+		}
+
+		public static PathsD OffsetPolygon(PathsD a_polygon1, double a_offset)
+		{
+			return Clipper.InflatePaths(a_polygon1, a_offset, JoinType.Square, EndType.Polygon);
 		}
 
 		public static float GetRectangleOverlapArea(float[,] a_rectA, float[,] a_rectB)
@@ -47,6 +53,16 @@ namespace MSPChallenge_Simulation.Simulation
 				area += a_polygon[i].x * a_polygon[j].y - a_polygon[i].y * a_polygon[j].x;
 			}
 			return Math.Abs(area * 0.5d);
+		}
+
+		public static PathsD ClipFromPolygon(PathsD a_polygon1, PathD a_clip)
+		{
+			PathsD csolution = new PathsD();
+			ClipperD co = new ClipperD();
+			co.AddSubject(a_polygon1);
+			co.AddClip(a_clip);
+			co.Execute(ClipType.Difference, FillRule.EvenOdd, csolution);
+			return csolution;
 		}
 
 		public static double GetPolygonPerimeter(PathD a_polygon)
