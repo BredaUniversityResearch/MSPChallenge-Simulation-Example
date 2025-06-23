@@ -13,6 +13,7 @@ using System.Data;
 using Clipper2Lib;
 using System.Reflection.Emit;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 
 const float BATHYMETRY_MAX_DEPTH = 1000f;
 const float SANDDEPTH_MAX_DEPTH = 12f;
@@ -39,6 +40,7 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 // Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
 Task InitialiseSession(SimulationSession a_session)
 {
+	Console.WriteLine($"Initialising session: {a_session.SessionToken}.");
 	Task t1 = GetLayerMeta(a_session, "ValueMap,Bathymetry", 0);
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
@@ -61,9 +63,19 @@ Task GetLayerMeta(SimulationSession a_session, string a_tags, int a_internalLaye
 	{
 		List<LayerMeta> layers = layerListTask.Result;
 		if (layers.Count == 0)
-			throw new Exception($"Could not find layer with tags: {a_tags}.");
-		LayerMeta layer = layerListTask.Result[0];
-		Console.WriteLine($"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
+			throw new Exception($"	Could not find layer with tags: {a_tags}.");
+		LayerMeta layer = layers[0];// null;
+		//foreach(LayerMeta meta in layers)
+		//{
+		//	if (!meta.layer_tags.Contains("Invisible"))
+		//	{
+		//		layer = meta;
+		//		break;
+		//	}	
+		//}
+		if (layer == null)
+			throw new Exception($"	Could not find layer with tags: {a_tags} that is not 'Invisible'.");
+		Console.WriteLine($"	Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
 
 		return a_session.MSPClient.HttpPost<LayerMeta>(
 			API_GET_LAYER_META,
@@ -85,9 +97,9 @@ Task CalculateDTSRaster(SimulationSession a_session)
 		//TODO: Skip this step once raster's LayerMeta contains raster resolution
 		List<SubEntityObject> shore = shoreGeometry.Result;
 		if(shore == null || shore.Count == 0)
-			throw new Exception($"Shore line layer does not contain expected geometry.");
+			throw new Exception($"	Shore line layer does not contain expected geometry.");
 		else
-			Console.WriteLine($"Coast line geometry received ({shore.Count} lines).");
+			Console.WriteLine($"	Coast line geometry received ({shore.Count} lines).");
 
 		return (shore, a_session.MSPClient.HttpPost<RasterRequestResponse>(
 		   API_GET_RASTER,
@@ -123,7 +135,7 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 			a_session.m_distanceToShoreRaster[x, y] = minDistance;
 		}
 	}
-	Console.WriteLine($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
+	Console.WriteLine($"	DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
 }
 
 
@@ -150,7 +162,7 @@ Task SessionSimulationStateEntered(SimulationSession session)
 		//Get bathymetry raster
 		return (pitGeometry, session.MSPClient.HttpPost<RasterRequestResponse>(
 		   API_GET_RASTER,
-		   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name } }
+		   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name }, { "month", session.CurrentMonth.ToString() } }
 		));
 	}).ContinueWithOnSuccess(dataset =>
     {
@@ -159,7 +171,7 @@ Task SessionSimulationStateEntered(SimulationSession session)
 		//Get sand depth raster
 		return (pitGeometry, bathymetryRaster, session.MSPClient.HttpPost<RasterRequestResponse>(
            API_GET_RASTER,
-           new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name } }
+           new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name }, { "month", session.CurrentMonth.ToString() } }
         ));
     }).ContinueWithOnSuccess(dataset =>
 	{
@@ -187,6 +199,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	 * Send new rasters and KPIs to server
 	 */
 
+	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 
@@ -212,18 +225,18 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		//	Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
 		//	continue;
 		//}
+		Console.WriteLine($"	Simulating pit with ID={pit.id}.");
 
 		double totalPitVolume = 0f;
-		int pitDepth;
+		int pitDepth = 1;
 		if (pit.data == null || !pit.data.TryGetValue("PitExtractionDepth", out string pitDepthStr) || !int.TryParse(pitDepthStr, out pitDepth))
 		{
-			Console.WriteLine($"Missing pit depth for pit with ID={pit.id}, skipped for calculation");
-			continue;
+			Console.WriteLine($"		Missing pit depth, using default depth of 1m.");
 		}
 		int pitSlope = 1;
 		if (pit.data == null || !pit.data.TryGetValue("PitSlope", out string pitSlopeStr) || !int.TryParse(pitSlopeStr, out pitSlope))
 		{
-			Console.WriteLine($"Missing pit slope for pit with ID={pit.id}, using default slope of 1/1 (45).");
+			Console.WriteLine($"		Missing pit slope, using default slope of 1/1m (45).");
 		}
 		PathD fullPitPath = new PathD(pit.geometry.Length);
 		//PathD currentPitPath = new PathD(pit.geometry.Length);
@@ -270,6 +283,8 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			if (currentDepth > pitDepth)
 				break;
 
+			double volumeAtDepth = 0d;
+
 			//Iterate over sanddepth pixel overlapping pit boundingbox
 			for (int x = sdStartX; x < sdEndX; x++)
 			{
@@ -304,7 +319,10 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 					if (rasterDepth < currentDepth)
 					{
 						//Pit depth does not cover the full 1m of the current layer, calculate remaining volume
-						totalPitVolume += overlapArea * (rasterDepth - currentDepth - 1f);
+						double volume = overlapArea * (1f - (currentDepth - rasterDepth));
+						totalPitVolume += volume;
+						volumeAtDepth += volume;
+						volumePerPixel[x - sdStartX, y - sdStartY] += volume;
 						pixelComplete[x - sdStartX, y - sdStartY] = true;
 						activePixels--;
 						//Then cut out of current pit path, so its correctly used for slopes
@@ -321,9 +339,12 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 					{
 						//Remaining pixel area is deeper then 1m slice, add full 1m overlap area
 						totalPitVolume += overlapArea;
+						volumeAtDepth += overlapArea;
+						volumePerPixel[x - sdStartX, y - sdStartY] += overlapArea;
 					}
 				}
 			}
+			Console.WriteLine($"		Volume extracted at depth {currentDepth}: {volumeAtDepth} m3.");
 			//Offset current pit path by slope amount to create next layer
 			currentPitPath = Util.OffsetPolygon(currentPitPath, pitSlope);
 			if (currentPitPath == null || currentPitPath.Count == 0)
@@ -345,6 +366,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 		monthlyExtractedVolume += totalPitVolume;
 		monthlyTotalDTS += totalPitVolume * averageDTS;
+		Console.WriteLine($"	Total volume for pit with ID={pit.id}: {totalPitVolume}");
 
 		//Calculates the range of bathymetry raster pixels that overlap with the pit's bounding box.
 		int bathStartX = (int)Math.Floor((pitXMin - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * bathRaster.Width);
@@ -458,7 +480,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		//	country = -1 
   //      }
 	};
-	Console.WriteLine($"Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} new pits simulated.");
+	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} new pits simulated.");
 }
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)

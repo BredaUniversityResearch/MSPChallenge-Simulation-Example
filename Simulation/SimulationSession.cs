@@ -277,7 +277,7 @@ public class SimulationSession
 			{
 				Console.WriteLine($"Setting {m_kpis.Count} KPIs");
 				foreach (var kpi in m_kpis)
-					Console.WriteLine($"{kpi.name}:{kpi.value} {kpi.unit}");
+					Console.WriteLine($"	{kpi.name}:{kpi.value} {kpi.unit}");
 				await m_mspClient.HttpPost(API_SET_KPI,
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
