@@ -1,15 +1,15 @@
 {
- "simulation_type": "External",
+ "simulation_type": "SandExtraction",
  "kpis": [
    {
      "categoryName": "Sand Extraction Volume",
      "unit": "m3",
      "valueDefinitions": [
        {
-         "valueName": "Monthly Sand Volume"
+         "valueName": "Monthly Volume"
        },
        {
-         "valueName": "Cumulative Sand Volume"
+         "valueName": "Cumulative Volume"
        }
      ]
    },
@@ -19,6 +19,15 @@
      "valueDefinitions": [
        {
          "valueName": "Monthly AVG DTS"
+       }
+     ]
+   },
+   {
+     "categoryName": "Sand Extraction UXO Loss",
+     "unit": "m3",
+     "valueDefinitions": [
+       {
+         "valueName": "Monthly Loss"
        }
      ]
    }

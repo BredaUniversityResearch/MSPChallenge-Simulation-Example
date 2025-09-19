@@ -436,6 +436,10 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	stream2.Dispose();
 	bathRaster.Dispose();
 
+	double uxoLossFactor = (new Random().NextDouble() * 5d + 10d) / 100d;
+	double uxoLossVolume = monthlyExtractedVolume * uxoLossFactor;
+	monthlyExtractedVolume -= uxoLossVolume;
+
 	a_session.m_totalDTS += monthlyTotalDTS;
 	a_session.m_totalExtractedVolume += monthlyExtractedVolume;
 	double monthlyAVGDTS = 0d;
@@ -447,16 +451,16 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	//Set extraction KPIs
 	a_session.m_kpis = new List<KPI>() { 
 		new KPI() {
-			name = "Monthly Sand Volume",
-			type = "EXTERNAL",
+			name = "Monthly Volume",
+			type = "SandExtraction",
 			value = monthlyExtractedVolume,
 			unit = "m3",
 			month = a_session.CurrentMonth,
 			country = -1 // for now, the server only supports showing non-country specific external KPIs
         },
 		new KPI() {
-			name = "Cumulative Sand Volume",
-			type = "EXTERNAL",
+			name = "Cumulative Volume",
+			type = "SandExtraction",
 			value = a_session.m_totalExtractedVolume,
 			unit = "m3",
 			month = a_session.CurrentMonth,
@@ -464,12 +468,20 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
         },
 		new KPI() {
 			name = "Monthly AVG DTS",
-			type = "EXTERNAL",
+			type = "SandExtraction",
 			value = monthlyAVGDTS,
 			unit = "m",
 			month = a_session.CurrentMonth,
 			country = -1 
-        }
+        },
+		new KPI() {
+			name = "Monthly Loss",
+			type = "SandExtraction",
+			value = uxoLossVolume,
+			unit = "m3",
+			month = a_session.CurrentMonth,
+			country = -1
+		}
 		//,
 		//new KPI() {
 		//	name = "Total DTS",
