@@ -256,15 +256,16 @@ public class SimulationSession
 	{
 		return Task.Run(async () =>
 		{
+			//TODO: Enable month parameters when api/layer/UpdateRaster accepts month specific rasters #1276
 			if (m_newSandDepthRaster != null)
 			{
 				await m_mspClient.HttpPost(API_SET_RASTER,
-					new NameValueCollection { { "layer_name", m_sandDepthMeta.layer_name }, { "image_data", m_newSandDepthRaster } });
+					new NameValueCollection { { "layer_name", m_sandDepthMeta.layer_name }, { "image_data", m_newSandDepthRaster }/*, { "month", m_currentMonth.ToString() }*/ });
 			}
-			if (m_newSandDepthRaster != null)
+			if (m_newBathymetryRaster != null)
 			{
 				await m_mspClient.HttpPost(API_SET_RASTER,
-					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster } });
+					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster }/*, { "month", m_currentMonth.ToString() }*/ });
 			}
 			if (m_kpis == null)
 			{

@@ -1,5 +1,5 @@
 {
- "simulation_type": "SandExtraction",
+ "simulation_type": "External",
  "kpis": [
    {
      "categoryName": "Sand Extraction Volume",
