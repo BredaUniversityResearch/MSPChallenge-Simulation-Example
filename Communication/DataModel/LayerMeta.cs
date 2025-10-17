@@ -32,7 +32,7 @@ public class LayerMeta
 	public string layer_category { get; set; }
 	public string layer_subcategory { get; set; }
 	public string layer_active { get; set; }
-	public string layer_raster { get; set; }
+	public RasterObject layer_raster { get; set; }
 	public float? layer_entity_value_max { get; set; }
 	public ScaleConfig scale { get; set; }
 }

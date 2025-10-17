@@ -219,12 +219,11 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 	foreach (SubEntityObject pit in a_pitGeometry)
 	{
-		//TODO: reenable when pit.implementation_time gets set by the server
-		//if (pit.implementation_time != a_session.CurrentMonth + 1)
-		//{
-		//	Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
-		//	continue;
-		//}
+		if (pit.implementation_time != a_session.CurrentMonth + 1)
+		{
+			Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
+			continue;
+		}
 		Console.WriteLine($"	Simulating pit with ID={pit.id}.");
 
 		double totalPitVolume = 0f;
@@ -497,28 +496,20 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)
 {
-	//TODO: switch to dynamic scale when implemented in server
-	return a_value / 256f * BATHYMETRY_MAX_DEPTH;
 	return a_session.m_bathymetryMeta.scale.PixelToValue(a_value);
 }
 
 byte GetBathymeteryValueForDepth(float a_depth, SimulationSession a_session)
 {
-	//TODO: switch to dynamic scale when implemented in server
-	return (byte)(a_depth / BATHYMETRY_MAX_DEPTH * 256f);
 	return a_session.m_bathymetryMeta.scale.ValueToPixel(a_depth);
 }
 
 float GetSandDepthForRaster(byte a_value, SimulationSession a_session)
 {
-	//TODO: switch to dynamic scale when implemented in server
-	return a_value / 256f * SANDDEPTH_MAX_DEPTH;
 	return a_session.m_sandDepthMeta.scale.PixelToValue(a_value);
 }
 
 byte GetSandValueForDepth(double a_depth, SimulationSession a_session)
 {
-	//TODO: switch to dynamic scale when implemented in server
-	return (byte)(a_depth / SANDDEPTH_MAX_DEPTH * 256f);
 	return a_session.m_sandDepthMeta.scale.ValueToPixel((float)a_depth);
 }
