@@ -219,7 +219,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 	foreach (SubEntityObject pit in a_pitGeometry)
 	{
-		if (pit.implementation_time != a_session.CurrentMonth + 1)
+		if (pit.implementation_time != a_session.CurrentMonth)
 		{
 			Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
 			continue;
