@@ -156,13 +156,13 @@ Task SessionSimulationStateEntered(SimulationSession session)
 	//Get pit geometry
 	return session.MSPClient.HttpPost<List<SubEntityObject>>(
 		   API_GET_LAYER_VECTOR,
-		   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() }, { "month", session.CurrentMonth.ToString() } }
+		   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() }, { "month", session.CurrentSimMonth.ToString() } }
     ).ContinueWithOnSuccess(pitGeometry =>
 	{
 		//Get bathymetry raster
 		return (pitGeometry, session.MSPClient.HttpPost<RasterRequestResponse>(
 		   API_GET_RASTER,
-		   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name }, { "month", session.CurrentMonth.ToString() } }
+		   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name }, { "month", session.CurrentSimMonth.ToString() } }
 		));
 	}).ContinueWithOnSuccess(dataset =>
     {
@@ -171,7 +171,7 @@ Task SessionSimulationStateEntered(SimulationSession session)
 		//Get sand depth raster
 		return (pitGeometry, bathymetryRaster, session.MSPClient.HttpPost<RasterRequestResponse>(
            API_GET_RASTER,
-           new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name }, { "month", session.CurrentMonth.ToString() } }
+           new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name }, { "month", session.CurrentSimMonth.ToString() } }
         ));
     }).ContinueWithOnSuccess(dataset =>
 	{
@@ -199,7 +199,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	 * Send new rasters and KPIs to server
 	 */
 
-	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");
+	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentSimMonth}.");
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 
@@ -424,7 +424,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	//Write new depth raster
 	using MemoryStream stream = new(16384);
 	sdRaster.Save(stream, new PngEncoder());
-	a_session.m_newBathymetryRaster = Convert.ToBase64String(stream.ToArray());
+	a_session.m_newSandDepthRaster = Convert.ToBase64String(stream.ToArray());
 	stream.Dispose();
 	sdRaster.Dispose();
 
@@ -491,7 +491,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		//	country = -1 
   //      }
 	};
-	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} new pits simulated.");
+	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentSimMonth}, {a_pitGeometry.Count} new pits simulated.");
 }
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)

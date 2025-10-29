@@ -55,6 +55,7 @@ public class SimulationSession
 	public string m_newSandDepthRaster;
 
 	public int CurrentMonth => m_currentMonth;
+	public int CurrentSimMonth => m_currentMonth-1;
 	public MspClient MSPClient => m_mspClient;
 	public GameSessionInfo GameSessionInfo => m_gameSessionInfo;
 	public string SessionToken => m_gameSessionToken;
@@ -256,6 +257,7 @@ public class SimulationSession
 	{
 		return Task.Run(async () =>
 		{
+			//Rasters are set for the next month, so the original raster is maintained. Sims use data from currentmonth-1.
 			if (m_newSandDepthRaster != null)
 			{
 				await m_mspClient.HttpPost(API_SET_RASTER,
@@ -282,7 +284,7 @@ public class SimulationSession
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
 			}
-			Console.WriteLine($"Results submitted for month: {CurrentMonth}");
+			Console.WriteLine($"Results submitted for month: {CurrentSimMonth}");
 		});
 
 		if (m_kpis == null || m_kpis.Count == 0) return Task.CompletedTask;
