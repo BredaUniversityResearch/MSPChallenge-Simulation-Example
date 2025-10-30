@@ -11,12 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using System.Numerics;
 using System.Data;
 using Clipper2Lib;
-using System.Reflection.Emit;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 
-const float BATHYMETRY_MAX_DEPTH = 1000f;
-const float SANDDEPTH_MAX_DEPTH = 12f;
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
 const string API_GET_LAYER_META = "/api/Layer/Meta";    //get layer metadata for layer with "layer_id"
@@ -45,7 +40,6 @@ Task InitialiseSession(SimulationSession a_session)
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
 	Task t4 = GetLayerMeta(a_session, "Line,Coast", 3);
-	//TODO: get initial TotalDTS and TotalExtractedVolume
 
 	return Task.Run(async () =>
 	{
@@ -65,14 +59,7 @@ Task GetLayerMeta(SimulationSession a_session, string a_tags, int a_internalLaye
 		if (layers.Count == 0)
 			throw new Exception($"	Could not find layer with tags: {a_tags}.");
 		LayerMeta layer = layers[0];// null;
-		//foreach(LayerMeta meta in layers)
-		//{
-		//	if (!meta.layer_tags.Contains("Invisible"))
-		//	{
-		//		layer = meta;
-		//		break;
-		//	}	
-		//}
+
 		if (layer == null)
 			throw new Exception($"	Could not find layer with tags: {a_tags} that is not 'Invisible'.");
 		Console.WriteLine($"	Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
@@ -142,21 +129,10 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 // Once the simulation state - the next month - is entered, this event will be triggered.
 Task SessionSimulationStateEntered(SimulationSession session)
 {
-	//return Task.Run(async () =>
-	//{
-	//	List<SubEntityObject> pits = await session.MSPClient.HttpPost<List<SubEntityObject>>(API_GET_LAYER_VECTOR,
-	//	   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() }, { "month", session.CurrentMonth.ToString() } } );
-	//	RasterRequestResponse bathRaster = await session.MSPClient.HttpPost<RasterRequestResponse>(API_GET_RASTER,
-	//	   new NameValueCollection { { "layer_name", session.m_bathymetryMeta.layer_name } } );
-	//	RasterRequestResponse sdRaster = await session.MSPClient.HttpPost<RasterRequestResponse>(API_GET_RASTER,
-	//	   new NameValueCollection { { "layer_name", session.m_sandDepthMeta.layer_name } });
-	//	 RunSimulationMonth(session, bathRaster, sdRaster, pits);
-	//});
-
 	//Get pit geometry
 	return session.MSPClient.HttpPost<List<SubEntityObject>>(
 		   API_GET_LAYER_VECTOR,
-		   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() }, { "month", session.CurrentSimMonth.ToString() } }
+		   new NameValueCollection { { "layer_id", session.m_pitsMeta.layer_id.ToString() }, { "month", session.CurrentMonth.ToString() } }
     ).ContinueWithOnSuccess(pitGeometry =>
 	{
 		//Get bathymetry raster
@@ -199,7 +175,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 	 * Send new rasters and KPIs to server
 	 */
 
-	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentSimMonth}.");
+	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> bathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 
@@ -219,7 +195,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 	foreach (SubEntityObject pit in a_pitGeometry)
 	{
-		if (pit.implementation_time != a_session.CurrentMonth)
+		if (pit.implementation_time != a_session.CurrentMonth && !(a_session.CurrentMonth == 0 && pit.implementation_time == -1))
 		{
 			Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
 			continue;
@@ -295,7 +271,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 					if (pixelComplete[x - sdStartX, y - sdStartY])
 						continue;
 
-					float rasterDepth = GetSandDepthForRaster(sdRaster[x, y].R, a_session);
+					float rasterDepth = GetSandDepthForRaster(sdRaster[x, sdRaster.Height-1-y].R, a_session);
 
 					RectD pixelRect = new RectD(
 						a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel,
@@ -357,8 +333,8 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		{
 			for (int y = sdStartY; y < sdEndY; y++)
 			{
-				double oldDepth = GetSandDepthForRaster(sdRaster[x, y].R, a_session);
-				sdRaster[x, y] = new Rgba32(GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session), 0, 0);
+				double oldDepth = GetSandDepthForRaster(sdRaster[x, sdRaster.Height-1-y].R, a_session);
+				sdRaster[x, sdRaster.Height - 1 - y] = new Rgba32(GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session), 0, 0);
 				averageDTS += volumePerPixel[x-sdStartX, y-sdStartY] / totalPitVolume * a_session.m_distanceToShoreRaster[x, y];
 			}
 		}
@@ -415,8 +391,8 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 				}
 
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
-				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, y].R, a_session) - (float)(avgExtractionDepth * coverageFraction);
-				bathRaster[x, y] = new Rgba32(GetBathymeteryValueForDepth(newDepth, a_session), 0, 0);
+				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, bathRaster.Height-1-y].R, a_session) - (float)(avgExtractionDepth * coverageFraction);
+				bathRaster[x, bathRaster.Height-1-y] = new Rgba32(GetBathymeteryValueForDepth(newDepth, a_session), 0, 0);
 			}
 		}
 	}
@@ -491,7 +467,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		//	country = -1 
   //      }
 	};
-	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentSimMonth}, {a_pitGeometry.Count} new pits simulated.");
+	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} pits simulated.");
 }
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)

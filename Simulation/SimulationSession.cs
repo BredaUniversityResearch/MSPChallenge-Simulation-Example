@@ -284,7 +284,7 @@ public class SimulationSession
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
 			}
-			Console.WriteLine($"Results submitted for month: {CurrentSimMonth}");
+			Console.WriteLine($"Results submitted for month: {CurrentMonth}");
 		});
 
 		if (m_kpis == null || m_kpis.Count == 0) return Task.CompletedTask;
