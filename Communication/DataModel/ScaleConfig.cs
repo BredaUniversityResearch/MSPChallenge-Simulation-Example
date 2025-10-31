@@ -63,9 +63,9 @@ public class ScaleConfig
 				{
 					float remappedT = (clamped - groups[i].min_output_value) / (groups[i + 1].min_output_value - groups[i].min_output_value);
 					normValue = groups[i].normalised_input_value + remappedT * (groups[i + 1].normalised_input_value - groups[i].normalised_input_value);
+					break;
 				}
 			}
-			return 0;
 		}
 		else
 		{
@@ -94,7 +94,6 @@ public class ScaleConfig
 					return (output - min_value) / (max_value - min_value);
 				}
 			}
-			return 0f;
 		}
 		return a_t;
 	}

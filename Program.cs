@@ -119,7 +119,7 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 			{
 				minDistance = Math.Min(minDistance, Util.PointDistanceFromLineString(originX + x * widthPerPixel, originY + y * heightPerPixel, line.geometry));
 			}
-			a_session.m_distanceToShoreRaster[x, y] = minDistance;
+			a_session.m_distanceToShoreRaster[x, sdRaster.Height-1-y] = minDistance;
 		}
 	}
 	Console.WriteLine($"	DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
@@ -275,10 +275,10 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 					RectD pixelRect = new RectD(
 						a_sandDepthRaster.displayed_bounds[0][0] + x * sdRealWidthPerPixel,
-						a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel,
+						a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel,
 						a_sandDepthRaster.displayed_bounds[0][0] + (x + 1) * sdRealWidthPerPixel,
-						a_sandDepthRaster.displayed_bounds[0][1] + y * sdRealHeightPerPixel);
-					pixelRect.Height = sdRealHeightPerPixel; //Height of the rect is not correct by default, this fixes
+						a_sandDepthRaster.displayed_bounds[0][1] + (y + 1) * sdRealHeightPerPixel);
+					//pixelRect.Height = sdRealHeightPerPixel; //Height of the rect is not correct by default, this fixes
 
 					double overlapArea = Util.GetPixelPolygonOverlapArea(pixelRect, currentPitPath); //Rect overlap is faster than poly
 
@@ -321,7 +321,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			}
 			Console.WriteLine($"		Volume extracted at depth {currentDepth}: {volumeAtDepth} m3.");
 			//Offset current pit path by slope amount to create next layer
-			currentPitPath = Util.OffsetPolygon(currentPitPath, pitSlope);
+			currentPitPath = Util.OffsetPolygon(currentPitPath, -pitSlope);
 			if (currentPitPath == null || currentPitPath.Count == 0)
 			{
 				break;
@@ -334,7 +334,8 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			for (int y = sdStartY; y < sdEndY; y++)
 			{
 				double oldDepth = GetSandDepthForRaster(sdRaster[x, sdRaster.Height-1-y].R, a_session);
-				sdRaster[x, sdRaster.Height - 1 - y] = new Rgba32(GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session), 0, 0);
+				byte value = GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session);
+				sdRaster[x, sdRaster.Height-1 - y] = new Rgba32(value, 0, 0);
 				averageDTS += volumePerPixel[x-sdStartX, y-sdStartY] / totalPitVolume * a_session.m_distanceToShoreRaster[x, y];
 			}
 		}
@@ -356,9 +357,9 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 			{
 				RectD bathPixelRect = new RectD(
 					a_bathymetryRaster.displayed_bounds[0][0] + x * bathRealWidthPerPixel,
-					a_bathymetryRaster.displayed_bounds[0][1] + (y + 1) * bathRealHeightPerPixel,
+					a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel,
 					a_bathymetryRaster.displayed_bounds[0][0] + (x + 1) * bathRealWidthPerPixel,
-					a_bathymetryRaster.displayed_bounds[0][1] + y * bathRealHeightPerPixel);
+					a_bathymetryRaster.displayed_bounds[0][1] + (y + 1) * bathRealHeightPerPixel);
 
 				PathsD  bathPitOverlap = Util.GetPixelPolygonOverlap(bathPixelRect, fullPitPath);
 				double bathPitOverlapArea = Util.GetPolygonArea(bathPitOverlap);
@@ -371,28 +372,29 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 				double avgExtractionDepth = 0f;
 				//Min and max pixel coordinates of this bath pixel on the sd raster
 				int depthStartX = Math.Max(sdStartX, (int)Math.Floor((bathPixelRect.left - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width));
-				int depthStartY = Math.Max(sdStartY, (int)Math.Floor((bathPixelRect.bottom - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
+				int depthStartY = Math.Max(sdStartY, (int)Math.Floor((bathPixelRect.top - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
 				int depthEndX = Math.Min(sdEndX, (int)Math.Ceiling((bathPixelRect.right - a_sandDepthRaster.displayed_bounds[0][0]) / sdRasterRealWidth * sdRaster.Width));
-				int depthEndY = Math.Min(sdEndY, (int)Math.Ceiling((bathPixelRect.top - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
+				int depthEndY = Math.Min(sdEndY, (int)Math.Ceiling((bathPixelRect.bottom - a_sandDepthRaster.displayed_bounds[0][1]) / sdRasterRealHeight * sdRaster.Height));
 				for (int depthX = depthStartX; depthX < depthEndX; depthX++)
 				{
 					for (int depthY = depthStartY; depthY < depthEndY; depthY++)
 					{
 						RectD sdPixelRect = new RectD(
 							a_sandDepthRaster.displayed_bounds[0][0] + depthX * sdRealWidthPerPixel,
-							a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel,
+							a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel,
 							a_sandDepthRaster.displayed_bounds[0][0] + (depthX + 1) * sdRealWidthPerPixel,
-							a_sandDepthRaster.displayed_bounds[0][1] + depthY * sdRealHeightPerPixel);
+							a_sandDepthRaster.displayed_bounds[0][1] + (depthY + 1) * sdRealHeightPerPixel);
 						//Find overlap of all 3 (pit∪bath∪sd)
 						double threeOverlapArea = Util.GetPolygonArea(Util.GetPixelPolygonOverlap(sdPixelRect, bathPitOverlap));
 						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with (bath∪pit) coverage fraction
-						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel;
+						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * volumePerPixel[depthX - depthStartX, depthY - depthStartY] / sdAreaPerPixel;
 					}
 				}
 
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
-				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, bathRaster.Height-1-y].R, a_session) - (float)(avgExtractionDepth * coverageFraction);
-				bathRaster[x, bathRaster.Height-1-y] = new Rgba32(GetBathymeteryValueForDepth(newDepth, a_session), 0, 0);
+				float newDepth = GetBathymeteryDepthForRaster(bathRaster[x, bathRaster.Height-1-y].R, a_session) + (float)(avgExtractionDepth * coverageFraction);
+				byte value = GetBathymeteryValueForDepth(newDepth, a_session);
+				bathRaster[x, bathRaster.Height-1-y] = new Rgba32(value, value, value);
 			}
 		}
 	}
