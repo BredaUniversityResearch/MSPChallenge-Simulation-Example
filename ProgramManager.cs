@@ -45,6 +45,7 @@ public class ProgramManager()
         m_args = args;
         m_sessions = new Dictionary<string, SimulationSession>();
 		m_simulationDefinitions = new Dictionary<string, List<Version>>();
+		GetServerID(); //Just initialise .env.local file
 
 		TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
