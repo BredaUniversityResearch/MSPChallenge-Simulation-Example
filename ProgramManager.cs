@@ -387,13 +387,13 @@ public class ProgramManager()
 
     private string GetServerID()
     {
-		var serverId = Environment.GetEnvironmentVariable("SERVER_ID");
+		var serverId = Environment.GetEnvironmentVariable("SERVER_ID", EnvironmentVariableTarget.User);
 		if (string.IsNullOrEmpty(serverId))
 		{
 			Console.WriteLine("SERVER_ID environment variable is not set. Generating a new one.");
 			// Generate a new UUID, save it back to the .env file
 			serverId = Guid.NewGuid().ToString();
-			Environment.SetEnvironmentVariable("SERVER_ID", serverId);
+			Environment.SetEnvironmentVariable("SERVER_ID", serverId, EnvironmentVariableTarget.User);
 			File.AppendAllText(".env.local", $"SERVER_ID={serverId}{Environment.NewLine}");
 		}
 		Console.WriteLine($"Server ID: {serverId}");
