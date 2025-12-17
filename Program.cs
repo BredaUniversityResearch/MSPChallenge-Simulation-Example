@@ -90,6 +90,16 @@ Task Setup()
             Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
         }
 
+        // notify that setup is finished
+        program.GetMspClient().HttpPost(
+            "/api/Simulation/NotifyMonthSimulationFinished",
+            new NameValueCollection
+            {
+                { "simulation_name", "SunHours" },
+                { "month", "-1" }
+            }
+        );
+
         program.OnSimulationStateEnteredEvent += (month) =>
             OnSimulationStateEnteredEvent(month, layer, layerObjects);
     });
