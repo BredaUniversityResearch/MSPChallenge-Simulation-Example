@@ -31,7 +31,8 @@ List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSess
 bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 {
     // here you can decide based on the game session info data if you want to accept this game session or not
-    return "North_Sea_basic" == gameSessionInfo.config_file_name; // the only one with layer tags
+    return "North_Sea_basic" == gameSessionInfo.config_file_name && // the only one with layer tags 
+        Version.Parse(gameSessionInfo.server_version).Major >= 6; // requires at least server version 6.x.x
 }
 
 // Once connected to the server, start setup.
