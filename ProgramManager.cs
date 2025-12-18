@@ -24,6 +24,7 @@ public class ProgramManager()
 	const string API_CONNECT_SESSION = "/Watchdog/ConnectSession"; //Incoming call to connect with a new session
 	const string API_SET_MONTH = "/Watchdog/SetMonth";      //Incoming call to set session month
 	const string API_SET_STATE = "/Watchdog/UpdateState";   //Incoming call to set session month and state
+	const string API_SETUP_ENTERED = "/api/Simulation/NotifyMonthSimulationFinished";   //Notify server that 'request -> setup' is complete
     const int DefaultTickRateMs = 1000;                     // 1000ms = 1 second
 
     private int m_tickRateMs = DefaultTickRateMs;
@@ -413,6 +414,15 @@ public class ProgramManager()
 				Console.WriteLine($"Session Initialisation for session ({a_session.SessionToken}) failed. Session will be removed.");
 				m_sessions.Remove(a_session.SessionToken);
 			}
+			// Notify that setup has been entered, does not need to be awaited
+			a_session.MSPClient.HttpPost(
+				API_SETUP_ENTERED,
+				new NameValueCollection
+				{
+					{ "simulation_name", "SandExtraction" },
+					{ "month", "-1" }
+				}
+			);
 			a_session.FireStateMachineTrigger(Trigger.FinishedSetup);
 		});
 	}
