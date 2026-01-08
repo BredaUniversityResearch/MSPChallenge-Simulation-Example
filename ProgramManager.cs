@@ -15,6 +15,8 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using System;
 using Microsoft.AspNetCore.Http.HttpResults;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace MSPChallenge_Simulation;
 
@@ -51,7 +53,37 @@ public class ProgramManager()
 		TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
-    }
+
+		//InitialiseMCP();
+
+	}
+
+	async Task InitialiseMCP()
+	{
+		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
+		{
+			Name = "SandExtraction",
+			Command = "docker",
+			Arguments = ["run", "-i", "-v", "/path/to/data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment"],
+		});
+
+		var client = await McpClient.CreateAsync(clientTransport);
+
+		// Print the list of tools available from the server.
+		foreach (var tool in await client.ListToolsAsync())
+		{
+			Console.WriteLine($"{tool.Name} ({tool.Description})");
+		}
+
+		// Execute a tool (this would normally be driven by LLM tool invocations).
+		var result = await client.CallToolAsync(
+			"echo",
+			new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
+			cancellationToken: CancellationToken.None);
+
+		// echo always returns one and only one text content object
+		Console.WriteLine(result.Content.OfType<TextContentBlock>().First().Text);
+	}
 
 	public void AddSimulationDefinition(string a_name, Version a_version)
 	{
