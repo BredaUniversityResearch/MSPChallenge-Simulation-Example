@@ -17,10 +17,11 @@ using System;
 using Microsoft.AspNetCore.Http.HttpResults;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace MSPChallenge_Simulation;
 
-public class ProgramManager()
+public class SessionManager()
 {
 	const string API_PING = "/Watchdog/Ping";               //Incoming ping request
 	const string API_CONNECT_SESSION = "/Watchdog/ConnectSession"; //Incoming call to connect with a new session
@@ -33,6 +34,7 @@ public class ProgramManager()
 	private DateTime m_lastTickTime = DateTime.Now;
 	private readonly string[] m_args = [];
 	private Dictionary<string, List<Version>> m_simulationDefinitions;
+	private McpClient m_simulationMCP;
 
     // Session data
     private Dictionary<string, SimulationSession> m_sessions; //Unique session tokens as keys
@@ -43,7 +45,7 @@ public class ProgramManager()
     public event Func<SimulationSession, Task>? OnSimulationStateEnteredEvent;
     public event Action<double /* deltaTimeSec */, SimulationSession>? OnTickEvent;
 
-    public ProgramManager(string[] args) : this()
+    public SessionManager(string[] args) : this()
     {
         m_args = args;
         m_sessions = new Dictionary<string, SimulationSession>();
@@ -54,7 +56,7 @@ public class ProgramManager()
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
 
-		//InitialiseMCP();
+		InitialiseMCP();
 
 	}
 
@@ -62,26 +64,71 @@ public class ProgramManager()
 	{
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
-			Name = "SandExtraction",
-			Command = "docker",
-			Arguments = ["run", "-i", "-v", "/path/to/data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment"],
+			Name = "BenthosSim",
+			Command = "docker run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
+			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
+			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
 		});
+		Console.WriteLine($"Connecting as MCP client");
 
-		var client = await McpClient.CreateAsync(clientTransport);
+		try
+		{
+			m_simulationMCP = await McpClient.CreateAsync(clientTransport);
+		}
+		catch
+		{
+			await m_simulationMCP.DisposeAsync().ConfigureAwait(false);
+			throw;
+		}
+
+		//Set logging level
+		if (m_simulationMCP.ServerCapabilities.Logging is null)
+		{
+			Console.WriteLine("Server does not support logging.");
+		}
+		else
+		{
+			Console.WriteLine("Requesting logging level: debug");
+			await m_simulationMCP.SetLoggingLevelAsync(LoggingLevel.Debug);
+		}
 
 		// Print the list of tools available from the server.
-		foreach (var tool in await client.ListToolsAsync())
+		foreach (var tool in await m_simulationMCP.ListToolsAsync())
 		{
 			Console.WriteLine($"{tool.Name} ({tool.Description})");
 		}
 
+		Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
+		{
+			["data"] = new int[,] {
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+				},
+			["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
+			["crs"] = "EPSG:32631",
+			["nodata"] = 0
+		};
+
+		Console.WriteLine("Creating test simulation");
 		// Execute a tool (this would normally be driven by LLM tool invocations).
-		var result = await client.CallToolAsync(
-			"echo",
-			new Dictionary<string, object?>() { ["message"] = "Hello MCP!" },
+		var result = await m_simulationMCP.CallToolAsync(
+			"create_simulation",
+			new Dictionary<string, object?>() {
+				["data"] = testDeltaRaster,
+				["scenario_type"] = "dredging",
+				["delta_raster"]= JsonConvert.SerializeObject(testDeltaRaster), 
+				["scenario_name"]= "didactic_test",
+				["prediction_grid"]= "model",
+				["generate_plots"]= false
+			},
 			cancellationToken: CancellationToken.None);
 
-		// echo always returns one and only one text content object
+		// echo always returns one and only one text content object 
 		Console.WriteLine(result.Content.OfType<TextContentBlock>().First().Text);
 	}
 

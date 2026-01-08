@@ -17,7 +17,7 @@ const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers wit
 const string API_GET_LAYER_META = "/api/Layer/Meta";    //get layer metadata for layer with "layer_id"
 const string API_GET_LAYER_VECTOR = "/api/Layer/GetGeometry";   //get geometry objects for layer with "layer_id"
 
-var program = new ProgramManager(args);
+var program = new SessionManager(args);
 
 program.AddSimulationDefinition("SandExtraction", new Version("1.0.0"));
 program.OnQuestionAcceptSessionEvent += OnQuestionAcceptSetupEvent;
