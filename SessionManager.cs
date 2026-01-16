@@ -18,6 +18,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using MSPChallenge_Simulation_Example.Communication.DataModel;
+using Microsoft.AspNetCore.Authentication;
 
 namespace MSPChallenge_Simulation;
 
@@ -35,6 +37,7 @@ public class SessionManager()
 	private readonly string[] m_args = [];
 	private Dictionary<string, List<Version>> m_simulationDefinitions;
 	private McpClient m_simulationMCP;
+	string simulationID;
 
     // Session data
     private Dictionary<string, SimulationSession> m_sessions; //Unique session tokens as keys
@@ -65,7 +68,7 @@ public class SessionManager()
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
 			Name = "BenthosSim",
-			Command = "docker run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
+			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
 			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
 			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
 			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
@@ -78,7 +81,8 @@ public class SessionManager()
 		}
 		catch
 		{
-			await m_simulationMCP.DisposeAsync().ConfigureAwait(false);
+			if(m_simulationMCP != null)
+				await m_simulationMCP.DisposeAsync().ConfigureAwait(false);
 			throw;
 		}
 
@@ -93,10 +97,17 @@ public class SessionManager()
 			await m_simulationMCP.SetLoggingLevelAsync(LoggingLevel.Debug);
 		}
 
+		//Get server instructions
+		if(m_simulationMCP.ServerInstructions != null)
+			Console.WriteLine(m_simulationMCP.ServerInstructions);
+		else
+			Console.WriteLine("No server instructions specified.");
+
 		// Print the list of tools available from the server.
+		Console.WriteLine("Tools available on the server:");
 		foreach (var tool in await m_simulationMCP.ListToolsAsync())
 		{
-			Console.WriteLine($"{tool.Name} ({tool.Description})");
+			Console.WriteLine($" • {tool.Name}: {tool.Description}");
 		}
 
 		Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
@@ -119,7 +130,6 @@ public class SessionManager()
 		var result = await m_simulationMCP.CallToolAsync(
 			"create_simulation",
 			new Dictionary<string, object?>() {
-				["data"] = testDeltaRaster,
 				["scenario_type"] = "dredging",
 				["delta_raster"]= JsonConvert.SerializeObject(testDeltaRaster), 
 				["scenario_name"]= "didactic_test",
@@ -128,8 +138,9 @@ public class SessionManager()
 			},
 			cancellationToken: CancellationToken.None);
 
-		// echo always returns one and only one text content object 
-		Console.WriteLine(result.Content.OfType<TextContentBlock>().First().Text);
+		SimulationCallResult callResult = JsonConvert.DeserializeObject<SimulationCallResult>(result.Content.OfType<TextContentBlock>().First().Text);
+		simulationID = callResult.simulation_id;
+		Console.WriteLine("Simulation started, ID is: " + callResult.simulation_id);
 	}
 
 	public void AddSimulationDefinition(string a_name, Version a_version)
@@ -456,6 +467,9 @@ public class SessionManager()
         var deltaTime = currentTickTime - m_lastTickTime;
         m_lastTickTime = currentTickTime;
 
+		if (!string.IsNullOrEmpty(simulationID))
+			PollSimulation(simulationID);
+
         if (m_sessions == null)
             return;
         foreach(var kvp in m_sessions)
@@ -465,7 +479,47 @@ public class SessionManager()
 		}
 	}
 
-    private string GetServerID()
+	async Task PollSimulation(string a_simulationID)
+	{
+		var simPollResultCall = await m_simulationMCP.CallToolAsync(
+			"get_simulation_status",
+			new Dictionary<string, object?>()
+			{
+				["simulation_id"] = a_simulationID
+			},
+			cancellationToken: CancellationToken.None);
+		SimulationStatusResult callResult = JsonConvert.DeserializeObject<SimulationStatusResult>(simPollResultCall.Content.OfType<TextContentBlock>().First().Text);
+		if(callResult.Failed)
+		{
+			Console.WriteLine($"Simulation with ID [{a_simulationID}] failed. Error message: {callResult.error_message}");
+			simulationID = null;
+		}
+		else if(callResult.Completed)
+		{
+			if (simulationID == null)
+				return;
+			Console.WriteLine($"Simulation with ID [{a_simulationID}] completed! Fetching results.");
+			simulationID = null;
+			var simResultCall = await m_simulationMCP.CallToolAsync(
+				"get_simulation_results",
+				new Dictionary<string, object?>()
+				{
+					["simulation_id"] = a_simulationID
+				},
+				cancellationToken: CancellationToken.None);
+			Console.WriteLine("Results received.");
+			SimulationResults simResult = JsonConvert.DeserializeObject<SimulationResults>(simResultCall.Content.OfType<TextContentBlock>().First().Text);
+			Console.WriteLine($"Simulation result net change: {simResult.summary.impact.sum_net_change_individuals}");
+			Console.WriteLine($"Simulation result mean percent change: {simResult.summary.impact.mean_percent_change}");
+		}
+		else
+		{
+			Console.WriteLine($"Progress of simulation with ID [{a_simulationID}]: {callResult.progress}%. Status: {callResult.status}");
+		}
+
+	}
+
+	private string GetServerID()
     {
 		var serverId = Environment.GetEnvironmentVariable("SERVER_ID", EnvironmentVariableTarget.User);
 		if (string.IsNullOrEmpty(serverId))
