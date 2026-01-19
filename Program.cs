@@ -181,6 +181,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 
 	double monthlyExtractedVolume = 0d;
 	double monthlyTotalDTS = 0d;
+	Dictionary<int, RasterPixelRect> bathRasterPitRects = new Dictionary<int, RasterPixelRect>();
 
 	//Raster dimensions
 	double sdRasterRealWidth = a_sandDepthRaster.displayed_bounds[1][0] - a_sandDepthRaster.displayed_bounds[0][0];
@@ -349,6 +350,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 		int bathStartY = (int)Math.Floor((pitYMin - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * bathRaster.Height);
 		int bathEndX = (int)Math.Ceiling((pitXMax - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * bathRaster.Width);
 		int bathEndY = (int)Math.Ceiling((pitYMax - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * bathRaster.Height);
+		bathRasterPitRects.Add(pit.id, new RasterPixelRect() { m_xMin = bathStartX, m_xMax = bathEndX, m_yMin = bathStartY, m_yMax = bathEndY });
 
 		//Iterate over bathymetry pixels overlapping pit bb
 		for (int x = bathStartX; x < bathEndX; x++)
@@ -397,6 +399,14 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
 				bathRaster[x, bathRaster.Height-1-y] = new Rgba32(value, value, value);
 			}
 		}
+	}
+
+	List<RasterPixelRect> groupedRects = GetGroupedPitRects(bathRasterPitRects, 2);
+	foreach(RasterPixelRect rect in groupedRects)
+	{
+		//TODO: iterate through bounds groups
+		//	Determine delta raster and area for the group
+		//	Addexternal sim handler to session
 	}
 
 	//Write new depth raster
@@ -470,6 +480,7 @@ void RunSimulationMonth(SimulationSession a_session, RasterRequestResponse a_bat
   //      }
 	};
 	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} pits simulated.");
+	a_session.m_internalSimulationComplete = true;
 }
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)
@@ -490,4 +501,31 @@ float GetSandDepthForRaster(byte a_value, SimulationSession a_session)
 byte GetSandValueForDepth(double a_depth, SimulationSession a_session)
 {
 	return a_session.m_sandDepthMeta.scale.ValueToPixel((float)a_depth);
+}
+
+List<RasterPixelRect> GetGroupedPitRects(Dictionary<int, RasterPixelRect> a_bathRasterPitRects, int a_boundsInPixels)
+{
+	List<RasterPixelRect> result = new List<RasterPixelRect>();
+	HashSet<int> groupedPitIDs = new HashSet<int>();
+	foreach(var kvp in a_bathRasterPitRects)
+	{
+		if (groupedPitIDs.Contains(kvp.Key))
+			continue;
+		groupedPitIDs.Add(kvp.Key);
+
+		result.Add(GetRecursiveBoundsGroup(a_bathRasterPitRects, a_boundsInPixels, groupedPitIDs, kvp.Value));
+	}
+	return result;
+}
+
+RasterPixelRect GetRecursiveBoundsGroup(Dictionary<int, RasterPixelRect> a_bathRasterPitRects, int a_boundsInPixels, HashSet<int> a_groupedPitIDs, RasterPixelRect a_rectToCheck)
+{
+	foreach (var kvp in a_bathRasterPitRects)
+	{
+		if (a_groupedPitIDs.Contains(kvp.Key))
+			continue;
+		//TODO: Check overlap of bounds
+		// if so, add to group, add to grouped Ids and repeat check
+	}
+
 }

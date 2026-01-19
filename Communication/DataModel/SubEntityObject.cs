@@ -13,3 +13,11 @@ public class SubEntityObject
 	public string type { get; set; }
 	public Dictionary<string, string> data { get; set; }
 }
+
+public class RasterPixelRect
+{
+	public int m_xMin;
+	public int m_xMax;
+	public int m_yMin;
+	public int m_yMax;
+}

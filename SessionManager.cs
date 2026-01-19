@@ -69,7 +69,9 @@ public class SessionManager()
 		{
 			Name = "BenthosSim",
 			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
-			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			
+			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			WorkingDirectory = "C:/Projects/OrElse/BenthicDocker"
 			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
 			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
 		});
@@ -475,7 +477,7 @@ public class SessionManager()
         foreach(var kvp in m_sessions)
         {
             OnTickEvent?.Invoke(deltaTime.TotalSeconds, kvp.Value);
-            kvp.Value.TickSession(deltaTime.TotalSeconds);
+            kvp.Value.TickSession(deltaTime.TotalSeconds, m_simulationMCP);
 		}
 	}
 
@@ -563,9 +565,11 @@ public class SessionManager()
 	private void OnSimulationStateEntered(SimulationSession a_session)
 	{
 		// eg. do simulation calculations
-		OnSimulationStateEnteredEvent?.Invoke(a_session).ContinueWith(_ => {
-			a_session.FireStateMachineTrigger(Trigger.FinishedSimulation);
-		});
+		a_session.m_internalSimulationComplete = false;
+		OnSimulationStateEnteredEvent?.Invoke(a_session);
+		//	.ContinueWith(_ => {
+		//	a_session.FireStateMachineTrigger(Trigger.FinishedSimulation);
+		//});
 	}
 
 	private void OnSessionClose(SimulationSession a_session)

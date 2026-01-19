@@ -1,4 +1,4 @@
-﻿namespace MSPChallenge_Simulation_Example.Communication.DataModel
+﻿namespace MSPChallenge_Simulation.Communication.DataModel
 {
 	public class SimulationCallResult
 	{
@@ -7,6 +7,7 @@
 
 		//optional
 		public string message;
+		public bool Failed => status == "failed";
 	}
 
 	public class SimulationStatusResult

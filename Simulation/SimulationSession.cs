@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using ModelContextProtocol.Client;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -48,6 +49,8 @@ public class SimulationSession
 	public float[,] m_distanceToShoreRaster; //Has the same resolution as sandDepth raster
 	public double m_totalExtractedVolume = 0d;
 	public double m_totalDTS = 0d;
+	public bool m_internalSimulationComplete = false;
+	public List<BenthicSimHandler> m_monthsBenthicSims;
 
 	//Output
 	public List<KPI> m_kpis;
@@ -128,8 +131,7 @@ public class SimulationSession
 		Console.WriteLine($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
 	}
 
-
-	public void TickSession(double a_deltaTimeSec)
+	public void TickSession(double a_deltaTimeSec, McpClient a_MCPClient)
 	{
 		RefreshWatchDogToken(a_deltaTimeSec);
 		RefreshApiAccessToken(a_deltaTimeSec);
@@ -148,6 +150,34 @@ public class SimulationSession
 		}
 		// fail-safe
 		if (m_targetGameState == EGameState.Setup) return; // do not proceed until next target game state
+
+		//While in simulation state, start and maintain any external simulations
+		if (m_programStateMachine?.GetCurrentState() == State.Simulation && m_internalSimulationComplete)
+		{
+			//poll external sims
+			bool simsDone = true;
+			foreach (BenthicSimHandler sim in m_monthsBenthicSims)
+			{
+				if (sim.Status == BenthicSimHandler.ExternalSimStatus.Failed)
+				{
+					//Sim failed. Log error and continue without compiling KPIs.
+					Console.WriteLine($"Simulation with ID [{sim.ID}] failed. Continuing wihout external sims. Message: {sim.m_message}.");
+					simsDone = false;
+					FireStateMachineTrigger(Trigger.FinishedSimulation);
+					break;
+				}
+				else if (sim.Status != BenthicSimHandler.ExternalSimStatus.Completed)
+				{
+					simsDone = false;
+					sim.PollResult(a_MCPClient);
+				}
+			}
+			if(simsDone)
+			{
+				//TODO: compile KPIs
+				FireStateMachineTrigger(Trigger.FinishedSimulation);
+			}
+		}
 
 		// AwaitingNextMonth is the only state we allow triggers: MonthUpdated, EndGame 
 		if (m_programStateMachine?.GetCurrentState() != State.AwaitingNextMonth) return;
