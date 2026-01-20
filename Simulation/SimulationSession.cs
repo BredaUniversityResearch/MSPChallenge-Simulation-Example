@@ -11,6 +11,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using ModelContextProtocol.Client;
+using Microsoft.AspNetCore.Http;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -48,7 +49,7 @@ public class SimulationSession
 	public LayerMeta m_shoreLineMeta;
 	public float[,] m_distanceToShoreRaster; //Has the same resolution as sandDepth raster
 	public double m_totalExtractedVolume = 0d;
-	public double m_totalDTS = 0d;
+	//public double m_totalDTS = 0d;
 	public bool m_internalSimulationComplete = false;
 	public List<BenthicSimHandler> m_monthsBenthicSims;
 
@@ -174,7 +175,21 @@ public class SimulationSession
 			}
 			if(simsDone)
 			{
-				//TODO: compile KPIs
+				//Compile KPIs
+				float individualsChange = 0f;
+				foreach (BenthicSimHandler sim in m_monthsBenthicSims)
+				{
+					individualsChange += sim.m_resultsSummary.summary.impact.sum_net_change_individuals;
+				}
+				m_kpis.Add(new KPI()
+				{
+					name = "Monthly Change",
+					type = "SandExtraction",
+					value = individualsChange,
+					unit = "",
+					month = CurrentMonth,
+					country = -1
+				});
 				FireStateMachineTrigger(Trigger.FinishedSimulation);
 			}
 		}

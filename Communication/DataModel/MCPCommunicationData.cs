@@ -80,4 +80,25 @@
 		public float max_depth_change;
 		public int affected_cells;
 	}
+
+	public class GeoTIFF
+	{
+		/* EXAMPLE
+			["data"] = new int[,] {
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }},
+			["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
+			["crs"] = "EPSG:32631",
+			["nodata"] = 0
+		 */
+
+		public float[,] data;
+		public float[] extent;
+		public string crs;
+		public int nodata = 0;
+	}
 }

@@ -30,6 +30,15 @@
          "valueName": "Monthly Loss"
        }
      ]
+   },
+   {
+     "categoryName": "Benthos net individuals",
+     "unit": "",
+     "valueDefinitions": [
+       {
+         "valueName": "Monthly Change"
+       }
+     ]
    }
  ]
 }

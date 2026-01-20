@@ -45,7 +45,7 @@ public class SessionManager()
 	// Define public events
     public event Func<GameSessionInfo, bool>? OnQuestionAcceptSessionEvent;
     public event Func<SimulationSession, Task>? OnSessionInitialiseEvent;
-    public event Func<SimulationSession, Task>? OnSimulationStateEnteredEvent;
+    public event Func<SimulationSession, McpClient, Task>? OnSimulationStateEnteredEvent;
     public event Action<double /* deltaTimeSec */, SimulationSession>? OnTickEvent;
 
     public SessionManager(string[] args) : this()
@@ -566,7 +566,7 @@ public class SessionManager()
 	{
 		// eg. do simulation calculations
 		a_session.m_internalSimulationComplete = false;
-		OnSimulationStateEnteredEvent?.Invoke(a_session);
+		OnSimulationStateEnteredEvent?.Invoke(a_session, m_simulationMCP);
 		//	.ContinueWith(_ => {
 		//	a_session.FireStateMachineTrigger(Trigger.FinishedSimulation);
 		//});
