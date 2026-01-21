@@ -428,8 +428,8 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 		{
 			for (int y = 0; y < rect.m_yMax - rect.m_yMin; y++)
 			{
-				deltaRaster.data[x, y] = GetBathymeteryDepthForRaster(newBathRaster[x, newBathRaster.Height - 1 - y].R, a_session) -
-					GetBathymeteryDepthForRaster(originalBathRaster[x, newBathRaster.Height - 1 - y].R, a_session);
+				deltaRaster.data[x, y] = 
+					GetBathymeteryDepthForRaster(originalBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session) - GetBathymeteryDepthForRaster(newBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session);
 			}
 		}
 		a_session.m_monthsBenthicSims.Add(new BenthicSimHandler(a_mcpClient, JsonConvert.SerializeObject(deltaRaster),

@@ -21,7 +21,7 @@
 		public string created_at; //date
 		public string started_at; //date
 		public string completed_at; //date
-		public float duration_seconds;
+		public float? duration_seconds;
 		public string error_message;
 
 		public bool Failed => status == "failed";

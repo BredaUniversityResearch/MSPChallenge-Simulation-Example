@@ -18,8 +18,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using MSPChallenge_Simulation_Example.Communication.DataModel;
 using Microsoft.AspNetCore.Authentication;
+using ModelContextProtocol;
 
 namespace MSPChallenge_Simulation;
 
@@ -37,7 +37,6 @@ public class SessionManager()
 	private readonly string[] m_args = [];
 	private Dictionary<string, List<Version>> m_simulationDefinitions;
 	private McpClient m_simulationMCP;
-	string simulationID;
 
     // Session data
     private Dictionary<string, SimulationSession> m_sessions; //Unique session tokens as keys
@@ -69,9 +68,9 @@ public class SessionManager()
 		{
 			Name = "BenthosSim",
 			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
-			
-			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			WorkingDirectory = "C:/Projects/OrElse/BenthicDocker"
+
+			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			//WorkingDirectory = "C:/Projects/OrElse/BenthicDocker"
 			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
 			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
 		});
@@ -111,38 +110,7 @@ public class SessionManager()
 		{
 			Console.WriteLine($" • {tool.Name}: {tool.Description}");
 		}
-
-		Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
-		{
-			["data"] = new int[,] {
-					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
-					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
-					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
-					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
-					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
-				},
-			["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
-			["crs"] = "EPSG:32631",
-			["nodata"] = 0
-		};
-
-		Console.WriteLine("Creating test simulation");
-		// Execute a tool (this would normally be driven by LLM tool invocations).
-		var result = await m_simulationMCP.CallToolAsync(
-			"create_simulation",
-			new Dictionary<string, object?>() {
-				["scenario_type"] = "dredging",
-				["delta_raster"]= JsonConvert.SerializeObject(testDeltaRaster), 
-				["scenario_name"]= "didactic_test",
-				["prediction_grid"]= "model",
-				["generate_plots"]= false
-			},
-			cancellationToken: CancellationToken.None);
-
-		SimulationCallResult callResult = JsonConvert.DeserializeObject<SimulationCallResult>(result.Content.OfType<TextContentBlock>().First().Text);
-		simulationID = callResult.simulation_id;
-		Console.WriteLine("Simulation started, ID is: " + callResult.simulation_id);
+		//RunTestSimulation();
 	}
 
 	public void AddSimulationDefinition(string a_name, Version a_version)
@@ -469,9 +437,6 @@ public class SessionManager()
         var deltaTime = currentTickTime - m_lastTickTime;
         m_lastTickTime = currentTickTime;
 
-		if (!string.IsNullOrEmpty(simulationID))
-			PollSimulation(simulationID);
-
         if (m_sessions == null)
             return;
         foreach(var kvp in m_sessions)
@@ -479,46 +444,6 @@ public class SessionManager()
             OnTickEvent?.Invoke(deltaTime.TotalSeconds, kvp.Value);
             kvp.Value.TickSession(deltaTime.TotalSeconds, m_simulationMCP);
 		}
-	}
-
-	async Task PollSimulation(string a_simulationID)
-	{
-		var simPollResultCall = await m_simulationMCP.CallToolAsync(
-			"get_simulation_status",
-			new Dictionary<string, object?>()
-			{
-				["simulation_id"] = a_simulationID
-			},
-			cancellationToken: CancellationToken.None);
-		SimulationStatusResult callResult = JsonConvert.DeserializeObject<SimulationStatusResult>(simPollResultCall.Content.OfType<TextContentBlock>().First().Text);
-		if(callResult.Failed)
-		{
-			Console.WriteLine($"Simulation with ID [{a_simulationID}] failed. Error message: {callResult.error_message}");
-			simulationID = null;
-		}
-		else if(callResult.Completed)
-		{
-			if (simulationID == null)
-				return;
-			Console.WriteLine($"Simulation with ID [{a_simulationID}] completed! Fetching results.");
-			simulationID = null;
-			var simResultCall = await m_simulationMCP.CallToolAsync(
-				"get_simulation_results",
-				new Dictionary<string, object?>()
-				{
-					["simulation_id"] = a_simulationID
-				},
-				cancellationToken: CancellationToken.None);
-			Console.WriteLine("Results received.");
-			SimulationResults simResult = JsonConvert.DeserializeObject<SimulationResults>(simResultCall.Content.OfType<TextContentBlock>().First().Text);
-			Console.WriteLine($"Simulation result net change: {simResult.summary.impact.sum_net_change_individuals}");
-			Console.WriteLine($"Simulation result mean percent change: {simResult.summary.impact.mean_percent_change}");
-		}
-		else
-		{
-			Console.WriteLine($"Progress of simulation with ID [{a_simulationID}]: {callResult.progress}%. Status: {callResult.status}");
-		}
-
 	}
 
 	private string GetServerID()
@@ -576,4 +501,95 @@ public class SessionManager()
     {
         m_sessions.Remove(a_session.SessionToken);
     }
+
+	private async void RunTestSimulation()
+	{
+		Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
+		{
+			["data"] = new int[,] {
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+				},
+			["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
+			["crs"] = "EPSG:32631",
+			["nodata"] = 0
+		};
+
+		Console.WriteLine("Creating test simulation");
+		// Execute a tool (this would normally be driven by LLM tool invocations).
+		var result = await m_simulationMCP.CallToolAsync(
+			"create_simulation",
+			new Dictionary<string, object?>()
+			{
+				["scenario_type"] = "dredging",
+				["delta_raster"] = JsonConvert.SerializeObject(testDeltaRaster),
+				["scenario_name"] = "didactic_test",
+				["prediction_grid"] = "model",
+				["generate_plots"] = false
+			},
+			cancellationToken: CancellationToken.None);
+
+		if (result.IsError.HasValue && result.IsError.Value)
+		{
+			Console.WriteLine($"   Creating test simulation failed. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
+			return;
+		}
+
+		SimulationCallResult callResult = JsonConvert.DeserializeObject<SimulationCallResult>(result.Content.OfType<TextContentBlock>().First().Text);
+		string simulationID = callResult.simulation_id;
+		Console.WriteLine("   Test simulation started, ID is: " + callResult.simulation_id);
+
+		//Poll simulation results
+		while (true)
+		{
+			var simPollResultCall = await m_simulationMCP.CallToolAsync(
+				"get_simulation_status",
+				new Dictionary<string, object?>()
+				{
+					["simulation_id"] = simulationID
+				},
+				cancellationToken: CancellationToken.None);
+			if (simPollResultCall.IsError.HasValue && simPollResultCall.IsError.Value)
+			{
+				Console.WriteLine($"Test simulation with ID [{simulationID}] failed. Error message: {simPollResultCall.Content.OfType<TextContentBlock>().First().Text}");
+				return;
+			}
+			SimulationStatusResult pollCallResult = JsonConvert.DeserializeObject<SimulationStatusResult>(simPollResultCall.Content.OfType<TextContentBlock>().First().Text);
+			if (pollCallResult.Failed)
+			{
+				Console.WriteLine($"Test simulation with ID [{simulationID}] failed. Error message: {pollCallResult.error_message}");
+				return;
+			}
+			else if (pollCallResult.Completed)
+			{
+				if (simulationID == null)
+					return;
+				Console.WriteLine($"   Test simulation with ID [{simulationID}] completed! Fetching results.");
+				var simResultCall = await m_simulationMCP.CallToolAsync(
+					"get_simulation_results",
+					new Dictionary<string, object?>()
+					{
+						["simulation_id"] = simulationID
+					},
+					cancellationToken: CancellationToken.None);
+				Console.WriteLine("   Test simulation results received.");
+				if(simResultCall.IsError.HasValue && simResultCall.IsError.Value)
+				{
+					Console.WriteLine($"Getting test simulation results failed. Message: {simResultCall.Content.OfType<TextContentBlock>().First().Text}");
+					return;
+				}
+				SimulationResults simResult = JsonConvert.DeserializeObject<SimulationResults>(simResultCall.Content.OfType<TextContentBlock>().First().Text);
+				Console.WriteLine($"   Test simulation result net change: {simResult.summary.impact.sum_net_change_individuals}");
+				Console.WriteLine($"   Test simulation result mean percent change: {simResult.summary.impact.mean_percent_change}");
+				Console.WriteLine("Test simulation successfull!");
+				return;
+			}
+			Console.WriteLine($"   Progress of test simulation with ID [{simulationID}]: {pollCallResult.progress}%. Status: {pollCallResult.status}");
+			await Task.Delay(1000);
+		}
+	}
 }
