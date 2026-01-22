@@ -11,6 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using Newtonsoft.Json;
 using Clipper2Lib;
 using ModelContextProtocol.Client;
+using Newtonsoft.Json.Serialization;
 
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
@@ -396,12 +397,17 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 						//Find overlap of all 3 (pit∪bath∪sd)
 						double threeOverlapArea = Util.GetPolygonArea(Util.GetPixelPolygonOverlap(sdPixelRect, bathPitOverlap));
 						//Add pre-normalized extraction depth to bath pixel's avg by multiplying with (bath∪pit) coverage fraction
-						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * volumePerPixel[depthX - depthStartX, depthY - depthStartY] / sdAreaPerPixel;
+						avgExtractionDepth += threeOverlapArea / bathPitOverlapArea * volumePerPixel[depthX - sdStartX, depthY - sdStartY] / sdAreaPerPixel;
 					}
 				}
-
+				//Console.WriteLine($"		At [{x},{y}]: pit coverage {coverageFraction.ToString("N2")}, avg depth {avgExtractionDepth.ToString("N2")}");
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
-				float newDepth = GetBathymeteryDepthForRaster(newBathRaster[x, newBathRaster.Height-1-y].R, a_session) + (float)(avgExtractionDepth * coverageFraction);
+				float oldDepth = GetBathymeteryDepthForRaster(newBathRaster[x, newBathRaster.Height - 1 - y].R, a_session);
+				float newDepth = oldDepth + (float)(avgExtractionDepth * coverageFraction);
+				if (MathF.Abs(newDepth - oldDepth) > 0.01f)
+				{
+					Console.WriteLine($"		Extracted {newDepth - oldDepth}m at [{x},{y}]");
+				}
 				byte value = GetBathymeteryValueForDepth(newDepth, a_session);
 				newBathRaster[x, newBathRaster.Height-1-y] = new Rgba32(value, value, value);
 			}
@@ -432,7 +438,9 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 					GetBathymeteryDepthForRaster(originalBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session) - GetBathymeteryDepthForRaster(newBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session);
 			}
 		}
-		a_session.m_monthsBenthicSims.Add(new BenthicSimHandler(a_mcpClient, JsonConvert.SerializeObject(deltaRaster),
+		string geotiffjson = JsonConvert.SerializeObject(deltaRaster);
+		Console.WriteLine(geotiffjson);
+		a_session.m_monthsBenthicSims.Add(new BenthicSimHandler(a_mcpClient, geotiffjson,
 			rect.m_xMin, rect.m_yMin, rect.m_xMax, rect.m_yMax));
 	}
 

@@ -69,8 +69,8 @@ public class SessionManager()
 			Name = "BenthosSim",
 			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
 
-			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			//WorkingDirectory = "C:/Projects/OrElse/BenthicDocker"
+			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
 			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
 		});
@@ -80,13 +80,14 @@ public class SessionManager()
 		{
 			m_simulationMCP = await McpClient.CreateAsync(clientTransport);
 		}
-		catch
+		catch (Exception e)
 		{
+			Console.WriteLine("MCP Server failed to start, message: " + e.Message);
 			if(m_simulationMCP != null)
 				await m_simulationMCP.DisposeAsync().ConfigureAwait(false);
 			throw;
 		}
-
+		Console.WriteLine("MCP Server connected");
 		//Set logging level
 		if (m_simulationMCP.ServerCapabilities.Logging is null)
 		{
@@ -110,7 +111,7 @@ public class SessionManager()
 		{
 			Console.WriteLine($" • {tool.Name}: {tool.Description}");
 		}
-		//RunTestSimulation();
+		RunTestSimulation();
 	}
 
 	public void AddSimulationDefinition(string a_name, Version a_version)
@@ -148,19 +149,11 @@ public class SessionManager()
         rootCommand.AddOption(httpsRedirectionOption);
         rootCommand.SetHandler((int? port, string? dotfile, bool? httpsRedirection) =>
         {
-            //HandleDotFile(dotfile);
             RunInternal(port, httpsRedirection);
         }, portOption, dotfileOption, httpsRedirectionOption);
         rootCommand.InvokeAsync(m_args).Wait();
     }
-
-    //private void HandleDotFile(string? dotfile)
-    //{
-    //    // if dotfile is set, generate a DOT file of the state machine
-    //    if (string.IsNullOrEmpty(dotfile)) return;
-    //    m_programStateMachine?.WriteToDotFile(dotfile);
-    //}
-    
+	    
     private void RunInternal(int? port, bool? httpsRedirection)
     {
         var builder = WebApplication.CreateBuilder(m_args);
@@ -315,16 +308,6 @@ public class SessionManager()
 		}
 		else if(IsSessionConnectionAccepted(a_request.game_session_info))
 		{
-			//try
-			//{
-			//	CheckRequiredSimulations(requiredSimulations);
-			//}
-			//catch (Exception e)
-			//{
-			//	Console.WriteLine(e.Message);
-			//	return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
-			//}
-
 			//Create new session
 			SimulationSession newSession = new SimulationSession(
 				a_request.game_session_token, GetServerID(),
@@ -338,61 +321,6 @@ public class SessionManager()
 		}
 		return Results.Ok(new { success = "1", message = "State updated successfully" });
 	}
-
-	IResult APISetStateOld([FromBody] UpdateStateRequest a_request)
-	{
-		var apiAccessToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_token);
-		var apiAccessRenewToken = JsonConvert.DeserializeObject<ApiToken>(a_request.api_access_renew_token);
-		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
-
-		EGameState newGameState;
-		try
-		{
-			ValidateRequestDataOld(apiAccessToken, apiAccessRenewToken, a_request, out newGameState);
-		}
-		catch (Exception e)
-		{
-			Console.WriteLine(e.Message);
-			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
-		}
-
-		if (m_sessions.TryGetValue(a_request.game_session_token, out var session))
-		{
-			session.UpdateState(apiAccessToken!, apiAccessRenewToken!, newGameState, a_request.month);
-		}
-		else
-		{
-			return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
-		}
-		return Results.Ok(new { success = "1", message = "State updated successfully" });
-	}
-
-	private void ValidateRequestDataOld(ApiToken? apiAccessToken, ApiToken? apiAccessRenewToken, UpdateStateRequest request,  out EGameState newGameState)
-    {
-        if (apiAccessToken == null || apiAccessRenewToken == null)
-        {
-            throw new Exception("Invalid JSON format for API tokens");
-        }
-        if (!Enum.TryParse(request.game_state, true, out newGameState))
-        {
-            throw new Exception("Invalid game state: " + request.game_state);
-        }
-
-        //if (newGameState != EGameState.Setup) return;
-        
-        if (request.game_session_info == null)
-        {
-            throw new Exception("Missing setup game session info");
-        }
-        if(IsSessionConnectionAccepted(request.game_session_info) && !m_sessions.ContainsKey(request.game_session_token))
-        {
-            // yes, we accepted this setup, add a new session object
-            m_sessions.Add(request.game_session_token, new SimulationSession(
-			request.game_session_token, GetServerID(), 
-                request.game_session_api, apiAccessToken, apiAccessRenewToken, newGameState, request.month, request.game_session_info, 
-				m_simulationDefinitions, OnSetupStateEntered, OnSimulationStateEntered, OnSessionClose));
-		}
-    }
 
 	private bool IsSessionConnectionAccepted(GameSessionInfo a_gameSessionInfo)
 	{
@@ -504,18 +432,36 @@ public class SessionManager()
 
 	private async void RunTestSimulation()
 	{
+		//Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
+		//{
+		//	["data"] = new int[,] {
+		//			{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+		//			{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+		//			{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+		//			{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
+		//			{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
+		//			{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+		//		},
+		//	["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
+		//	["crs"] = "EPSG:32631",
+		//	["nodata"] = 0
+		//};
+
 		Dictionary<string, object> testDeltaRaster = new Dictionary<string, object>()
 		{
-			["data"] = new int[,] {
-					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
-					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
-					{ 0, 0, -2, -4, -4, -4, -4, -2, 0, 0},
-					{ 0, 0, -1, -2, -2, -2, -2, -1, 0, 0},
-					{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+			["data"] = new double[,] {
+					{ 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0 },
+					{ 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0},
+					{ 0.0,0.0,0.0,-3.1583462,-3.4012966,0.0,0.0,0.0,0.0},
+					{ 0.0,0.0,-1.9435997,-10.689787,-10.689787,-1.4576988,0.0,0.0,0.0},
+					{ 0.0,0.0,-0.24295044,-8.98914,-11.904535,-8.26029,0.0,0.0,0.0},
+					{ 0.0,0.0,0.0,-2.4294968,-8.503241,-9.9609375,-0.24295044,0.0,0.0 },
+					{ 0.0,0.0,0.0,0.0,0.0,-2.1865463,0.0,0.0,0.0 },
+					{ 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0 },
+					{ 0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0 }
 				},
-			["extent"] = new int[] { 555000, 5905000, 556000, 5906000 },
-			["crs"] = "EPSG:32631",
+			["extent"] = new double[] { 3939316.0, 3294528.8, 3943767.8, 3298979.8 },
+			["crs"] = "EPSG:3035",
 			["nodata"] = 0
 		};
 
