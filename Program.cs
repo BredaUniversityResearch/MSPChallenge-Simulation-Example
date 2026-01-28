@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Clipper2Lib;
 using ModelContextProtocol.Client;
 using Newtonsoft.Json.Serialization;
+using System.Collections.Generic;
 
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
@@ -177,10 +178,13 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	 * Send new rasters and KPIs to server
 	 */
 
+	if (a_session.CurrentMonth < 0)
+		a_session.m_originalBathymetryRaster = a_bathymetryRaster.image_data;
+
 	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> newBathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
-	using Image<Rgba32> originalBathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
+	using Image<Rgba32> originalBathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_session.m_originalBathymetryRaster));
 
 	double monthlyExtractedVolume = 0d;
 	double monthlyTotalDTS = 0d;
@@ -414,35 +418,44 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 		}
 	}
 
-	a_session.m_monthsBenthicSims = new List<BenthicSimHandler>();
-	List<RasterPixelRect> groupedRects = GetGroupedPitRects(bathRasterPitRects);
-	foreach(RasterPixelRect rect in groupedRects)
+	foreach (RasterPixelRect rect in bathRasterPitRects)
 	{
-		//Iterate through bounds groups, determine delta raster and area for the group, add external sim handler to session
-		GeoTIFF deltaRaster = new GeoTIFF()
-		{
-			data = new float[rect.m_xMax - rect.m_xMin, rect.m_yMax - rect.m_yMin],
-			crs = "EPSG:3035",
-			extent = new float[] {
-				(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMin * bathRealWidthPerPixel),
-				(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMin * bathRealHeightPerPixel),
-				(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMax * bathRealWidthPerPixel),
-				(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMax * bathRealHeightPerPixel)
-			}
-		};
-		for (int x = 0; x < rect.m_xMax - rect.m_xMin; x++)
-		{
-			for (int y = 0; y < rect.m_yMax - rect.m_yMin; y++)
-			{
-				deltaRaster.data[x, y] = 
-					GetBathymeteryDepthForRaster(originalBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session) - GetBathymeteryDepthForRaster(newBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session);
-			}
-		}
-		string geotiffjson = JsonConvert.SerializeObject(deltaRaster);
-		Console.WriteLine(geotiffjson);
-		a_session.m_monthsBenthicSims.Add(new BenthicSimHandler(a_mcpClient, geotiffjson,
-			rect.m_xMin, rect.m_yMin, rect.m_xMax, rect.m_yMax));
+		a_session.m_activeBenthicSims.Add(new BenthicSimAreaHandler(rect));
 	}
+	a_session.m_activeBenthicSims = GetGroupedSimHandles(a_session.m_activeBenthicSims);
+	foreach(BenthicSimAreaHandler sim in a_session.m_activeBenthicSims)
+	{
+		sim.DetermineDeltaRaster(originalBathRaster, newBathRaster, a_bathymetryRaster.displayed_bounds, bathRealWidthPerPixel, bathRealHeightPerPixel, a_session);
+	}
+
+	//Old setup
+	//List<RasterPixelRect> groupedRects = GetGroupedPitRects(bathRasterPitRects);
+	//a_session.m_activeBenthicSims = new List<BenthicSimAreaHandler>();
+	//foreach(RasterPixelRect rect in groupedRects)
+	//{
+	//	//Iterate through bounds groups, determine delta raster and area for the group, add external sim handler to session
+	//	GeoTIFF deltaRaster = new GeoTIFF()
+	//	{
+	//		data = new float[rect.m_xMax - rect.m_xMin, rect.m_yMax - rect.m_yMin],
+	//		crs = "EPSG:3035",
+	//		extent = new float[] {
+	//			(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMin * bathRealWidthPerPixel),
+	//			(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMin * bathRealHeightPerPixel),
+	//			(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMax * bathRealWidthPerPixel),
+	//			(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMax * bathRealHeightPerPixel)
+	//		}
+	//	};
+	//	for (int x = 0; x < rect.m_xMax - rect.m_xMin; x++)
+	//	{
+	//		for (int y = 0; y < rect.m_yMax - rect.m_yMin; y++)
+	//		{
+	//			deltaRaster.data[x, y] = 
+	//				GetBathymeteryDepthForRaster(originalBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session) 
+	//				- GetBathymeteryDepthForRaster(newBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session);
+	//		}
+	//	}
+	//	a_session.m_activeBenthicSims.Add(new BenthicSimHandler(a_mcpClient, JsonConvert.SerializeObject(deltaRaster), rect));
+	//}
 
 	//Write new depth raster
 	using MemoryStream stream = new(16384);
@@ -515,7 +528,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
   //      }
 	};
 	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} pits simulated.");
-	a_session.m_internalSimulationComplete = true;
+	a_session.InternalSimComplete();
 }
 
 float GetBathymeteryDepthForRaster(byte a_value, SimulationSession a_session)
@@ -540,43 +553,77 @@ byte GetSandValueForDepth(double a_depth, SimulationSession a_session)
 
 List<RasterPixelRect> GetGroupedPitRects(List<RasterPixelRect> a_bathRasterPitRects)
 {
-	List<RasterPixelRect> result = new List<RasterPixelRect>();
-	HashSet<int> groupedPitIndices = new HashSet<int>();
+	/* For each pit, iterate through other pits and group on overlap.
+	 * Indices of pits grouped into another are excluded from further search.
+	 * If a grouping happens, reiterate through ungrouped pits to recheck overlap */
+
+	HashSet<int> groupedPitIndices = new HashSet<int>(); //Indices of all pits that have been grouped into another
 
 	for(int i = 0; i < a_bathRasterPitRects.Count; i++)
 	{
 		if (groupedPitIndices.Contains(i))
 			continue; //Skip pit if it was already grouped with a previous pit
-		groupedPitIndices.Add(i);
-		RasterPixelRect newGroup = new RasterPixelRect()
-		{
-			m_xMin = a_bathRasterPitRects[i].m_xMin,
-			m_xMax = a_bathRasterPitRects[i].m_xMax,
-			m_yMin = a_bathRasterPitRects[i].m_yMin,
-			m_yMax = a_bathRasterPitRects[i].m_yMax
-		};
 
-		//Check other pits for overlap
+		//Check other pits for overlap, add to current if they do
 		for (int j = i+1; j < a_bathRasterPitRects.Count; j++)
 		{
-			if (groupedPitIndices.Contains(i))
-				continue; //Skip already grouped pit. We're sure they dont overlap with the current group or have already been added.
-			if (a_bathRasterPitRects[j].m_xMin < newGroup.m_xMax && a_bathRasterPitRects[j].m_xMax > newGroup.m_xMin &&
-				a_bathRasterPitRects[j].m_yMin < newGroup.m_yMax && a_bathRasterPitRects[j].m_yMax > newGroup.m_yMin)
+			if (j == i || groupedPitIndices.Contains(j))
+				continue; //Skip already grouped pit. 
+
+			if (a_bathRasterPitRects[i].Overlaps(a_bathRasterPitRects[j]))
 			{
-				// if bounds overlap, add to group and add to grouped indices
+				// If bounds overlap, add to group and add to grouped indices
+				a_bathRasterPitRects[i].AddBounds(a_bathRasterPitRects[j]);
 				groupedPitIndices.Add(j);
-				RasterPixelRect newRect = new RasterPixelRect()
-				{
-					m_xMin = Math.Min(a_bathRasterPitRects[j].m_xMin, newGroup.m_xMin),
-					m_xMax = Math.Max(a_bathRasterPitRects[j].m_xMax, newGroup.m_xMax),
-					m_yMin = Math.Min(a_bathRasterPitRects[j].m_yMin, newGroup.m_yMin),
-					m_yMax = Math.Max(a_bathRasterPitRects[j].m_yMax, newGroup.m_yMax)
-				};
-				j = i; //Recheck previous pits because the group has changed
+				j = 0; //Recheck previous pits because the group has changed
 			}
 		}
-		result.Add(newGroup);
+	}
+
+	//All pits that have not been grouped into another remain
+	List<RasterPixelRect> result = new List<RasterPixelRect>();
+	for (int i = 0; i < a_bathRasterPitRects.Count; i++)
+	{
+		if(!groupedPitIndices.Contains(i))
+			result.Add(a_bathRasterPitRects[i]);
+	}
+	return result;
+}
+
+List<BenthicSimAreaHandler> GetGroupedSimHandles(List<BenthicSimAreaHandler> a_bathRasterPitRects)
+{
+	/* For each pit, iterate through other pits and group on overlap.
+	 * Indices of pits grouped into another are excluded from further search.
+	 * If a grouping happens, reiterate through ungrouped pits to recheck overlap */
+
+	HashSet<int> groupedPitIndices = new HashSet<int>(); //Indices of all pits that have been grouped into another
+
+	for (int i = 0; i < a_bathRasterPitRects.Count; i++)
+	{
+		if (groupedPitIndices.Contains(i))
+			continue; //Skip pit if it was already grouped with a previous pit
+
+		//Check other pits for overlap, add to current if they do
+		for (int j = i + 1; j < a_bathRasterPitRects.Count; j++)
+		{
+			if (j == i || groupedPitIndices.Contains(j))
+				continue; //Skip already grouped pit. 
+
+			if (a_bathRasterPitRects[i].AddAreaOnOverlap(a_bathRasterPitRects[j].m_rasterPixelRect))
+			{
+				// If bounds overlap, add to group and add to grouped indices
+				groupedPitIndices.Add(j);
+				j = 0; //Recheck previous pits because the group has changed
+			}
+		}
+	}
+
+	//All pits that have not been grouped into another remain
+	List<BenthicSimAreaHandler> result = new List<BenthicSimAreaHandler>();
+	for (int i = 0; i < a_bathRasterPitRects.Count; i++)
+	{
+		if (!groupedPitIndices.Contains(i))
+			result.Add(a_bathRasterPitRects[i]);
 	}
 	return result;
 }

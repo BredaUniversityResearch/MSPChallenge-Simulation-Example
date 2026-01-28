@@ -81,6 +81,20 @@
 		public int affected_cells;
 	}
 
+	public class SimulationResultsAggregation
+	{
+		public int n_simulations;
+		public float total_net_change_individuals;
+		public float total_losses_individuals;
+		public float total_gains_individuals;
+		public float total_affected_area_km2;
+		public float total_volume_removed_m3;
+		public float total_net_volume_m3;
+		public float weighted_mean_percent_change;
+		public float max_depth_decrease_m;
+		public float max_depth_increase_m;
+	}
+
 	public class GeoTIFF
 	{
 		/* EXAMPLE

@@ -58,7 +58,7 @@ public class SessionManager()
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
 
-		InitialiseMCP();
+		//InitialiseMCP();
 
 	}
 
@@ -68,11 +68,9 @@ public class SessionManager()
 		{
 			Name = "BenthosSim",
 			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
-
-			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
-			//Arguments = ["run", "-i", "--name", "BenthosSim", "-v", "./data:/app/data:ro", "henriqueguarneri/benthic-impact-assessment:stdio"],
-			//Arguments = ["run -i --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment"],
+			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data henriqueguarneri/benthic-impact-assessment",
+			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			//WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 		});
 		Console.WriteLine($"Connecting as MCP client");
 
@@ -418,7 +416,6 @@ public class SessionManager()
 	private void OnSimulationStateEntered(SimulationSession a_session)
 	{
 		// eg. do simulation calculations
-		a_session.m_internalSimulationComplete = false;
 		OnSimulationStateEnteredEvent?.Invoke(a_session, m_simulationMCP);
 		//	.ContinueWith(_ => {
 		//	a_session.FireStateMachineTrigger(Trigger.FinishedSimulation);
@@ -473,8 +470,11 @@ public class SessionManager()
 			{
 				["scenario_type"] = "dredging",
 				["delta_raster"] = JsonConvert.SerializeObject(testDeltaRaster),
-				["scenario_name"] = "didactic_test",
-				["prediction_grid"] = "model",
+				["scenario_name"] = "TestSimulation",
+				//["prediction_grid"] = "model",
+				["prediction_grid"] = "fine",
+				["baseline_bathymetry"] = "data/raw/depth_IHM_UTM.rds",
+				["compute_bpi_onthefly"] = true,
 				["generate_plots"] = false
 			},
 			cancellationToken: CancellationToken.None);

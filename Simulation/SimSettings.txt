@@ -32,11 +32,11 @@
      ]
    },
    {
-     "categoryName": "Benthos net individuals",
+     "categoryName": "Benthos Individuals",
      "unit": "",
      "valueDefinitions": [
        {
-         "valueName": "Monthly Change"
+         "valueName": "Total Net Change"
        }
      ]
    }

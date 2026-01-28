@@ -12,6 +12,7 @@ using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using ModelContextProtocol.Client;
 using Microsoft.AspNetCore.Http;
+using ModelContextProtocol.Protocol;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -25,6 +26,7 @@ public class SimulationSession
 	const int DefaultMonth = -1; // setup month
 	const int PollTokenFrequencySec = 60;
 	const int RefreshApiAccessTokenFrequencySec = 900;
+	enum SimulationState { Internal, External, Aggregation };
 
 	//Session meta
 	private double m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
@@ -38,20 +40,22 @@ public class SimulationSession
 	private EGameState? m_currentGameState;
 	private EGameState? m_targetGameState = EGameState.Setup;
 	private ProgramStateMachine? m_programStateMachine;
+	private SimulationState m_simulationState;
 
 	//Server communication
 	private MspClient m_mspClient;
 
 	//Simulation specific data
 	public LayerMeta m_bathymetryMeta;
+	public string m_originalBathymetryRaster;
 	public LayerMeta m_sandDepthMeta;
 	public LayerMeta m_pitsMeta;
 	public LayerMeta m_shoreLineMeta;
 	public float[,] m_distanceToShoreRaster; //Has the same resolution as sandDepth raster
 	public double m_totalExtractedVolume = 0d;
 	//public double m_totalDTS = 0d;
-	public bool m_internalSimulationComplete = false;
-	public List<BenthicSimHandler> m_monthsBenthicSims;
+	public List<BenthicSimAreaHandler> m_activeBenthicSims = new List<BenthicSimAreaHandler>();
+	SimulationResultsAggregation m_simAggregationResult;
 
 	//Output
 	public List<KPI> m_kpis;
@@ -153,44 +157,51 @@ public class SimulationSession
 		if (m_targetGameState == EGameState.Setup) return; // do not proceed until next target game state
 
 		//While in simulation state, start and maintain any external simulations
-		if (m_programStateMachine?.GetCurrentState() == State.Simulation && m_internalSimulationComplete)
+		if (m_programStateMachine?.GetCurrentState() == State.Simulation)
 		{
-			//poll external sims
-			bool simsDone = true;
-			foreach (BenthicSimHandler sim in m_monthsBenthicSims)
+			if (m_simulationState == SimulationState.External)
 			{
-				if (sim.Status == BenthicSimHandler.ExternalSimStatus.Failed)
+				//poll external sims
+				bool externalSimsDone = true;
+				foreach (BenthicSimAreaHandler sim in m_activeBenthicSims)
 				{
-					//Sim failed. Log error and continue without compiling KPIs.
-					Console.WriteLine($"Simulation with ID [{sim.ID}] failed. Continuing wihout external sims. Message: {sim.m_message}.");
-					simsDone = false;
-					FireStateMachineTrigger(Trigger.FinishedSimulation);
-					break;
+					if (sim.Status == BenthicSimAreaHandler.ExternalSimStatus.Failed)
+					{
+						//Sim failed. Log error and continue without compiling KPIs.
+						Console.WriteLine($"Simulation with ID [{sim.ID}] failed. Continuing wihout external sims. Message: {sim.m_message}.");
+						externalSimsDone = false;
+						FireStateMachineTrigger(Trigger.FinishedSimulation);
+						break;
+					}
+					else if (sim.Status != BenthicSimAreaHandler.ExternalSimStatus.Completed)
+					{
+						externalSimsDone = false;
+						sim.PollResult(a_MCPClient);
+					}
 				}
-				else if (sim.Status != BenthicSimHandler.ExternalSimStatus.Completed)
+				if (externalSimsDone)
 				{
-					simsDone = false;
-					sim.PollResult(a_MCPClient);
+					//Compile KPIs
+					if (m_activeBenthicSims.Count > 0)
+					{
+						m_simulationState = SimulationState.Aggregation;
+						AggregateResults(a_MCPClient);
+					}
+					else
+					{
+						m_kpis.Add(new KPI()
+						{
+							name = "Total Net Change",
+							type = "SandExtraction",
+							value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
+							unit = "",
+							month = CurrentMonth,
+							country = -1
+						});
+						m_simulationState = SimulationState.Internal;
+						FireStateMachineTrigger(Trigger.FinishedSimulation);
+					}
 				}
-			}
-			if(simsDone)
-			{
-				//Compile KPIs
-				float individualsChange = 0f;
-				foreach (BenthicSimHandler sim in m_monthsBenthicSims)
-				{
-					individualsChange += sim.m_resultsSummary.summary.impact.sum_net_change_individuals;
-				}
-				m_kpis.Add(new KPI()
-				{
-					name = "Monthly Change",
-					type = "SandExtraction",
-					value = individualsChange,
-					unit = "",
-					month = CurrentMonth,
-					country = -1
-				});
-				FireStateMachineTrigger(Trigger.FinishedSimulation);
 			}
 		}
 
@@ -284,6 +295,7 @@ public class SimulationSession
 
 	private void OnSimulationStateEntered()
 	{
+		m_simulationState = SimulationState.Internal;
 		m_onSimulationStateEntered?.Invoke(this);
 	}
 
@@ -350,6 +362,57 @@ public class SimulationSession
 		});
 	}
 
+	private async void AggregateResults(McpClient a_MCPClient)
+	{
+		string[] simIds = new string[m_activeBenthicSims.Count];
+		for(int i = 0; i < m_activeBenthicSims.Count; i++)
+		{
+			simIds[i] = m_activeBenthicSims[i].ID;
+		}
+		var result = await a_MCPClient.CallToolAsync(
+			"aggregate_simulations",
+			new Dictionary<string, object?>()
+			{
+				["simulation_ids"] = simIds,
+				["include_details"] = false
+			},
+			cancellationToken: CancellationToken.None);
+
+		if (result.IsError.HasValue && result.IsError.Value)
+		{
+			Console.WriteLine($"   Aggregating simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
+			return;
+		}
+		SimulationResultsAggregation callResult = JsonConvert.DeserializeObject<SimulationResultsAggregation>(result.Content.OfType<TextContentBlock>().First().Text);
+		if (callResult == null)
+		{
+			m_kpis.Add(new KPI()
+			{
+				name = "Total Net Change",
+				type = "SandExtraction",
+				value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
+				unit = "",
+				month = CurrentMonth,
+				country = -1
+			});
+		}
+		else
+		{
+			m_simAggregationResult = callResult;
+			m_kpis.Add(new KPI()
+			{
+				name = "Total Net Change",
+				type = "SandExtraction",
+				value = m_simAggregationResult.total_net_change_individuals,
+				unit = "",
+				month = CurrentMonth,
+				country = -1
+			});
+		}
+		m_simulationState = SimulationState.Internal;
+		FireStateMachineTrigger(Trigger.FinishedSimulation);
+	}
+
 	public void FireStateMachineTrigger(Trigger a_trigger)
 	{
 		m_programStateMachine?.Fire(a_trigger);
@@ -365,5 +428,10 @@ public class SimulationSession
 			m_pitsMeta = a_meta;
 		else if (a_internalLayerID == 3)
 			m_shoreLineMeta = a_meta;
+	}
+
+	public void InternalSimComplete()
+	{
+		m_simulationState = SimulationState.External;
 	}
 }

@@ -2,33 +2,96 @@ using MSPChallenge_Simulation.Communication.DataModel;
 using Newtonsoft.Json;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp;
 
 namespace MSPChallenge_Simulation.Simulation;
 
-public class BenthicSimHandler
+public class BenthicSimAreaHandler
 {
 	public enum ExternalSimStatus { Unscheduled, AwaitingCreate, AwaitingResultsIdle, AwaitingResultsPolled, AwaitingResultsFetch, Completed, Failed }
 
-	string m_jsonGeotiff;
+	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
-	public int m_rasterXMin, m_rasterYMin, m_rasterXMax, m_rasterYMax;
+	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;
 	public SimulationRasterResults? m_resultsRaster;
 
 	public ExternalSimStatus Status => m_status;
-	public string ID => m_simID;
+	public string? ID => m_simID;
 
-	public BenthicSimHandler(McpClient a_MCPClient, string a_jsonGeotiff, int a_rasterXMin, int a_rasterYMin, int a_rasterXMax, int a_rasterYMax)
+	public BenthicSimAreaHandler(RasterPixelRect a_rasterPixelRect)
 	{
-		m_jsonGeotiff = a_jsonGeotiff;
-		m_rasterXMin = a_rasterXMin;
-		m_rasterXMax = a_rasterXMax;
-		m_rasterYMin = a_rasterYMin;
-		m_rasterYMax = a_rasterYMax;
-		m_status = ExternalSimStatus.AwaitingCreate;
-		CreateSimInternal(a_MCPClient);
+		m_rasterPixelRect = a_rasterPixelRect;
+	}
+
+	void ResetRequest()
+	{
+		m_status = ExternalSimStatus.Unscheduled;
+		m_simID = null;
+		m_jsonGeotiff = null;
+		m_message = null;
+		m_resultsSummary = null;
+		m_resultsRaster = null;
+		//DOES NOT RESET RECT!
+	}
+
+	public bool AddAreaOnOverlap(RasterPixelRect a_newRasterPixelRect)
+	{
+		//If area changes, it will have to be resimulated, so it is Reset.
+		if (m_rasterPixelRect.Overlaps(a_newRasterPixelRect))
+		{
+			m_rasterPixelRect.AddBounds(a_newRasterPixelRect);
+			if(m_status != ExternalSimStatus.Unscheduled)
+				ResetRequest();
+			return true;
+		}
+		return false;
+	}
+
+	public void DetermineDeltaRaster(Image<Rgba32> a_orignalBath, Image<Rgba32> a_newBath, float[][] a_rasterBounds, double a_realPixelWidth, double a_realPixelHeight, SimulationSession a_session)
+	{
+		if (m_status != ExternalSimStatus.Unscheduled)
+			return;
+
+		GeoTIFF deltaRaster = new GeoTIFF()
+		{
+			data = new float[m_rasterPixelRect.m_xMax - m_rasterPixelRect.m_xMin, m_rasterPixelRect.m_yMax - m_rasterPixelRect.m_yMin],
+			crs = "EPSG:3035",
+			extent = new float[] {
+				(float)(a_rasterBounds[0][0] + m_rasterPixelRect.m_xMin * a_realPixelWidth),
+				(float)(a_rasterBounds[0][1] + m_rasterPixelRect.m_yMin * a_realPixelHeight),
+				(float)(a_rasterBounds[0][0] + m_rasterPixelRect.m_xMax * a_realPixelWidth),
+				(float)(a_rasterBounds[0][1] + m_rasterPixelRect.m_yMax * a_realPixelHeight)
+			}
+		};
+		for (int x = 0; x < m_rasterPixelRect.m_xMax - m_rasterPixelRect.m_xMin; x++)
+		{
+			for (int y = 0; y < m_rasterPixelRect.m_yMax - m_rasterPixelRect.m_yMin; y++)
+			{
+				deltaRaster.data[x, y] =
+				a_session.m_bathymetryMeta.scale.PixelToValue(a_orignalBath[x + m_rasterPixelRect.m_xMin, a_orignalBath.Height - 1 - (m_rasterPixelRect.m_yMin + y)].R)
+				- a_session.m_bathymetryMeta.scale.PixelToValue(a_newBath[x + m_rasterPixelRect.m_xMin, a_newBath.Height - 1 - (m_rasterPixelRect.m_yMin + y)].R);
+			}
+		}
+		m_jsonGeotiff = JsonConvert.SerializeObject(deltaRaster);
+	}
+
+	public void PollResult(McpClient a_MCPClient)
+	{
+		if(m_status == ExternalSimStatus.Unscheduled)
+		{
+			CreateSimInternal(a_MCPClient);
+			m_status = ExternalSimStatus.AwaitingCreate;
+		}
+		if (m_status != ExternalSimStatus.AwaitingResultsIdle)
+		{
+			return;
+		}
+		m_status = ExternalSimStatus.AwaitingResultsPolled;
+		PollResultInternal(a_MCPClient);
 	}
 
 	async void CreateSimInternal(McpClient a_MCPClient)
@@ -61,16 +124,6 @@ public class BenthicSimHandler
 
 		m_status = ExternalSimStatus.AwaitingResultsIdle;
 		m_simID = callResult.simulation_id;
-	}
-
-	public void PollResult(McpClient a_MCPClient)
-	{
-		if (m_status != ExternalSimStatus.AwaitingResultsIdle)
-		{
-			return;
-		}
-		m_status = ExternalSimStatus.AwaitingResultsPolled;
-		PollResultInternal(a_MCPClient);
 	}
 
 	async void PollResultInternal(McpClient a_MCPClient)
@@ -140,13 +193,13 @@ public class BenthicSimHandler
 				},
 				cancellationToken: CancellationToken.None);
 
-		if (simResultSummaryCall.IsError.HasValue && simResultSummaryCall.IsError.Value)
+		if (simResultRasterCall.IsError.HasValue && simResultRasterCall.IsError.Value)
 		{
 			m_status = ExternalSimStatus.Failed;
 			m_message = "MCP call to fetch benthic sim result raster failed for unknown reasons.";
 			return;
 		}
-		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultSummaryCall.Content.OfType<TextContentBlock>().First().Text);
+		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultRasterCall.Content.OfType<TextContentBlock>().First().Text);
 		m_status = ExternalSimStatus.Completed;
 		Console.WriteLine($"Simulation with ID [{m_simID}] results fetched.");
 		Console.WriteLine($"Simulation result net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");

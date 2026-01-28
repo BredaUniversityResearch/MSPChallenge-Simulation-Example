@@ -20,4 +20,18 @@ public class RasterPixelRect
 	public int m_xMax;
 	public int m_yMin;
 	public int m_yMax;
+
+	public bool Overlaps(RasterPixelRect a_other)
+	{
+		return m_xMin < a_other.m_xMax && m_xMax > a_other.m_xMin &&
+				m_yMin < a_other.m_yMax && m_yMax > a_other.m_yMin;
+	}
+
+	public void AddBounds(RasterPixelRect a_other)
+	{
+		m_xMin = Math.Min(m_xMin, a_other.m_xMin);
+		m_xMax = Math.Max(m_xMax, a_other.m_xMax);
+		m_yMin = Math.Min(m_yMin, a_other.m_yMin);
+		m_yMax = Math.Max(m_yMax, a_other.m_yMax);
+	}
 }
