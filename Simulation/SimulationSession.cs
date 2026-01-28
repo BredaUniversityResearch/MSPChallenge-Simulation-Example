@@ -380,7 +380,7 @@ public class SimulationSession
 
 		if (result.IsError.HasValue && result.IsError.Value)
 		{
-			Console.WriteLine($"   Aggregating simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
+			Console.WriteLine($"   Failed to aggregate simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
 			return;
 		}
 		SimulationResultsAggregation callResult = JsonConvert.DeserializeObject<SimulationResultsAggregation>(result.Content.OfType<TextContentBlock>().First().Text);
@@ -409,6 +409,10 @@ public class SimulationSession
 				country = -1
 			});
 		}
+		Console.WriteLine($"   Result of {simIds.Length} simulations aggregated.");
+		Console.WriteLine($"   Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
+		Console.WriteLine($"   Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
+
 		m_simulationState = SimulationState.Internal;
 		FireStateMachineTrigger(Trigger.FinishedSimulation);
 	}

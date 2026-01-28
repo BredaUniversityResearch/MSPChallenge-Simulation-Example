@@ -178,7 +178,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	 * Send new rasters and KPIs to server
 	 */
 
-	if (a_session.CurrentMonth < 0)
+	if (a_session.CurrentMonth == 0)
 		a_session.m_originalBathymetryRaster = a_bathymetryRaster.image_data;
 
 	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");

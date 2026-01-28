@@ -58,8 +58,7 @@ public class SessionManager()
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
 
-		//InitialiseMCP();
-
+		InitialiseMCP();
 	}
 
 	async Task InitialiseMCP()
@@ -109,7 +108,7 @@ public class SessionManager()
 		{
 			Console.WriteLine($" • {tool.Name}: {tool.Description}");
 		}
-		RunTestSimulation();
+		//RunTestSimulation();
 	}
 
 	public void AddSimulationDefinition(string a_name, Version a_version)
