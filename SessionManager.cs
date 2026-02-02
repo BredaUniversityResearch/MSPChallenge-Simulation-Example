@@ -66,10 +66,10 @@ public class SessionManager()
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
 			Name = "BenthosSim",
-			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro henriqueguarneri/benthic-impact-assessment",
+			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
 			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data henriqueguarneri/benthic-impact-assessment",
-			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			//WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
+			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 		});
 		Console.WriteLine($"Connecting as MCP client");
 
