@@ -127,13 +127,13 @@ public class SimulationSession
 		m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
 		m_targetMonth = a_targetMonth;
 		m_targetGameState = a_newGameState;
-		Console.WriteLine($"State of session {m_gameSessionToken} changed. Setting target month to {m_targetMonth} and state to {m_targetGameState}");
+		Util.LogSessionLevel($"State of session {m_gameSessionToken} changed. Setting target month to {m_targetMonth} and state to {m_targetGameState}");
 	}
 
 	public void SetTargetMonth(int a_targetMonth)
 	{
 		m_targetMonth = a_targetMonth;
-		Console.WriteLine($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
+		Util.LogSessionLevel($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
 	}
 
 	public void TickSession(double a_deltaTimeSec, McpClient a_MCPClient)
@@ -168,7 +168,7 @@ public class SimulationSession
 					if (sim.Status == BenthicSimAreaHandler.ExternalSimStatus.Failed)
 					{
 						//Sim failed. Log error and continue without compiling KPIs.
-						Console.WriteLine($"Simulation with ID [{sim.ID}] failed. Continuing wihout external sims. Message: {sim.m_message}.");
+						Util.LogSimLevel1($"Simulation with ID [{sim.ID}] failed. Continuing wihout benthic sims. Message: {sim.m_message}.");
 						externalSimsDone = false;
 						FireStateMachineTrigger(Trigger.FinishedSimulation);
 						break;
@@ -189,17 +189,7 @@ public class SimulationSession
 					}
 					else
 					{
-						m_kpis.Add(new KPI()
-						{
-							name = "Total Net Change",
-							type = "SandExtraction",
-							value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
-							unit = "",
-							month = CurrentMonth,
-							country = -1
-						});
-						m_simulationState = SimulationState.Internal;
-						FireStateMachineTrigger(Trigger.FinishedSimulation);
+						SkipAggregation();
 					}
 				}
 			}
@@ -223,7 +213,7 @@ public class SimulationSession
 
 		// we shouldn't skip months, so increment the previous month until we reach the current month
 		m_currentMonth++;
-		Console.WriteLine($"Month updated to {m_currentMonth}");
+		Util.LogSessionLevel($"Month updated to {m_currentMonth}");
 		m_programStateMachine?.Fire(Trigger.MonthUpdated);
 	}
 
@@ -246,11 +236,11 @@ public class SimulationSession
 				{
 					var tokenObj = task.Result;
 					if (m_gameSessionToken == tokenObj.watchdog_token) return;
-					Console.WriteLine("Watchdog token changed.");
+					Util.LogSessionLevel("Watchdog token changed.");
 					m_onSessionClose?.Invoke(this);
 				}, exception =>
 				{
-					Console.WriteLine($"Could not retrieve watchdog token: {exception.Message}.");
+					Util.LogSessionLevel($"Could not retrieve watchdog token: {exception.Message}.");
 					m_onSessionClose?.Invoke(this);
 				}
 			);
@@ -278,10 +268,10 @@ public class SimulationSession
 				{
 					m_mspClient.apiAccessToken = task.Result.api_access_token;
 					m_mspClient.apiRefreshToken = task.Result.api_refresh_token;
-					Console.WriteLine("Api access token refreshed.");
+					Util.LogSessionLevel("Api access token refreshed.");
 				}, exception =>
 				{
-					Console.WriteLine($"Could not refresh api access token: {exception.Message}.");
+					Util.LogSessionLevel($"Could not refresh api access token: {exception.Message}.");
 					m_onSessionClose?.Invoke(this);
 				}
 			);
@@ -327,21 +317,21 @@ public class SimulationSession
 			}
 			if (m_kpis == null)
 			{
-				Console.WriteLine("No KPIs set, sending empty KPI Set request");
+				Util.LogSimLevel1("No KPIs set, sending empty KPI Set request");
 				await m_mspClient.HttpPost(API_SET_KPI,
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(new List<KPI>()) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
 			}
 			else
 			{
-				Console.WriteLine($"Setting {m_kpis.Count} KPIs");
+				Util.LogSimLevel1($"Setting {m_kpis.Count} KPIs");
 				foreach (var kpi in m_kpis)
-					Console.WriteLine($"	{kpi.name}:{kpi.value} {kpi.unit}");
+					Util.LogSimLevel2($"{kpi.name}:{kpi.value} {kpi.unit}");
 				await m_mspClient.HttpPost(API_SET_KPI,
 					new NameValueCollection { { "kpiValues", JsonConvert.SerializeObject(m_kpis) } },
 					new NameValueCollection { { "x-notify-monthly-simulation-finished", "true" } });
 			}
-			Console.WriteLine($"Results submitted for month: {CurrentMonth}");
+			Util.LogSimLevel1($"Results submitted for month: {CurrentMonth}");
 		});
 
 		if (m_kpis == null || m_kpis.Count == 0) return Task.CompletedTask;
@@ -364,6 +354,7 @@ public class SimulationSession
 
 	private async void AggregateResults(McpClient a_MCPClient)
 	{
+		Util.LogSimLevel1("Aggregating benthic simulation results.");
 		string[] simIds = new string[m_activeBenthicSims.Count];
 		for(int i = 0; i < m_activeBenthicSims.Count; i++)
 		{
@@ -380,7 +371,7 @@ public class SimulationSession
 
 		if (result.IsError.HasValue && result.IsError.Value)
 		{
-			Console.WriteLine($"   Failed to aggregate simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
+			Util.LogSimLevel1($"Failed to aggregate simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
 			return;
 		}
 		SimulationResultsAggregation callResult = JsonConvert.DeserializeObject<SimulationResultsAggregation>(result.Content.OfType<TextContentBlock>().First().Text);
@@ -409,9 +400,8 @@ public class SimulationSession
 				country = -1
 			});
 		}
-		Console.WriteLine($"   Result of {simIds.Length} simulations aggregated.");
-		Console.WriteLine($"   Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
-		Console.WriteLine($"   Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
+		Util.LogSimLevel2($"Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
+		Util.LogSimLevel2($"Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
 
 		m_simulationState = SimulationState.Internal;
 		FireStateMachineTrigger(Trigger.FinishedSimulation);
@@ -436,6 +426,46 @@ public class SimulationSession
 
 	public void InternalSimComplete()
 	{
-		m_simulationState = SimulationState.External;
+		if(m_activeBenthicSims.Count == 0)
+		{
+			Util.LogSimLevel1("No active benthic sim groups to simulate.");
+			SkipAggregation();
+		}
+		else
+		{
+			Util.LogSimLevel1("Current benthic sim groups:");
+			int activeGroups = 0;
+			foreach(var group in m_activeBenthicSims)
+			{
+				bool active = group.Status == BenthicSimAreaHandler.ExternalSimStatus.Unscheduled;
+				if (active)
+					activeGroups ++;
+				Util.LogSimLevel2($"{(active ? "Fresh" : "Stale")}: {string.Join(", ", group.m_pitIDs)}");
+			}
+			if(activeGroups == 0)
+			{
+				Util.LogSimLevel1($"No fresh groups. Skipping external sims and aggregation.");
+				SkipAggregation();
+			}
+			else
+			{
+				m_simulationState = SimulationState.External;
+			}
+		}
+	}
+
+	void SkipAggregation()
+	{
+		m_kpis.Add(new KPI()
+		{
+			name = "Total Net Change",
+			type = "SandExtraction",
+			value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
+			unit = "",
+			month = CurrentMonth,
+			country = -1
+		});
+		m_simulationState = SimulationState.Internal;
+		FireStateMachineTrigger(Trigger.FinishedSimulation);
 	}
 }

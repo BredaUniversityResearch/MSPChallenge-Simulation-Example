@@ -38,7 +38,7 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 // Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
 Task InitialiseSession(SimulationSession a_session)
 {
-	Console.WriteLine($"Initialising session: {a_session.SessionToken}.");
+	Util.LogSessionLevel($"Initialising session: {a_session.SessionToken}.");
 	Task t1 = GetLayerMeta(a_session, "ValueMap,Bathymetry", 0);
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
@@ -65,7 +65,7 @@ Task GetLayerMeta(SimulationSession a_session, string a_tags, int a_internalLaye
 
 		if (layer == null)
 			throw new Exception($"	Could not find layer with tags: {a_tags} that is not 'Invisible'.");
-		Console.WriteLine($"	Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
+		Util.LogSessionLevel($"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
 
 		return a_session.MSPClient.HttpPost<LayerMeta>(
 			API_GET_LAYER_META,
@@ -89,7 +89,7 @@ Task CalculateDTSRaster(SimulationSession a_session)
 		if(shore == null || shore.Count == 0)
 			throw new Exception($"	Shore line layer does not contain expected geometry.");
 		else
-			Console.WriteLine($"	Coast line geometry received ({shore.Count} lines).");
+			Util.LogSessionLevel($"Coast line geometry received ({shore.Count} lines).");
 
 		return (shore, a_session.MSPClient.HttpPost<RasterRequestResponse>(
 		   API_GET_RASTER,
@@ -125,7 +125,7 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 			a_session.m_distanceToShoreRaster[x, sdRaster.Height-1-y] = minDistance;
 		}
 	}
-	Console.WriteLine($"	DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
+	Util.LogSessionLevel($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
 }
 
 
@@ -181,7 +181,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	if (a_session.CurrentMonth == 0)
 		a_session.m_originalBathymetryRaster = a_bathymetryRaster.image_data;
 
-	Console.WriteLine($"====== Starting simulation for month {a_session.CurrentMonth}.");
+	Util.LogSimLevel0($"Starting internal simulation for month {a_session.CurrentMonth}.");
 	using Image<Rgba32> sdRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_sandDepthRaster.image_data));
 	using Image<Rgba32> newBathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_bathymetryRaster.image_data));
 	using Image<Rgba32> originalBathRaster = Image.Load < Rgba32 >(Convert.FromBase64String(a_session.m_originalBathymetryRaster));
@@ -189,6 +189,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	double monthlyExtractedVolume = 0d;
 	double monthlyTotalDTS = 0d;
 	List<RasterPixelRect> bathRasterPitRects = new List<RasterPixelRect>();
+	List<int> bathRasterPitIDs = new List<int>();
 
 	//Raster dimensions
 	double sdRasterRealWidth = a_sandDepthRaster.displayed_bounds[1][0] - a_sandDepthRaster.displayed_bounds[0][0];
@@ -205,21 +206,20 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	{
 		if (pit.implementation_time != a_session.CurrentMonth && !(a_session.CurrentMonth == 0 && pit.implementation_time == -1))
 		{
-			Console.WriteLine($"Skipping old pit geometry with ID {pit.id}");
 			continue;
 		}
-		Console.WriteLine($"	Simulating pit with ID={pit.id}.");
+		Util.LogSimLevel2($"Simulating pit with ID={pit.id}.");
 
 		double totalPitVolume = 0f;
 		int pitDepth = 1;
 		if (pit.data == null || !pit.data.TryGetValue("PitExtractionDepth", out string pitDepthStr) || !int.TryParse(pitDepthStr, out pitDepth))
 		{
-			Console.WriteLine($"		Missing pit depth, using default depth of 1m.");
+			Util.LogSimLevel3($"Missing pit depth, using default depth of 1m.");
 		}
 		int pitSlope = 1;
 		if (pit.data == null || !pit.data.TryGetValue("PitSlope", out string pitSlopeStr) || !int.TryParse(pitSlopeStr, out pitSlope))
 		{
-			Console.WriteLine($"		Missing pit slope, using default slope of 1/1m (45).");
+			Util.LogSimLevel3($"Missing pit slope, using default slope of 1/1m (45).");
 		}
 		PathD fullPitPath = new PathD(pit.geometry.Length);
 		//PathD currentPitPath = new PathD(pit.geometry.Length);
@@ -327,7 +327,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 					}
 				}
 			}
-			Console.WriteLine($"		Volume extracted at depth {currentDepth}: {volumeAtDepth} m3.");
+			Util.LogSimLevel3($"Volume extracted at depth {currentDepth}: {volumeAtDepth} m3.");
 			//Offset current pit path by slope amount to create next layer
 			currentPitPath = Util.OffsetPolygon(currentPitPath, -pitSlope);
 			if (currentPitPath == null || currentPitPath.Count == 0)
@@ -350,13 +350,14 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 
 		monthlyExtractedVolume += totalPitVolume;
 		monthlyTotalDTS += totalPitVolume * averageDTS;
-		Console.WriteLine($"	Total volume for pit with ID={pit.id}: {totalPitVolume}");
+		Util.LogSimLevel3($"Total volume for pit with ID={pit.id}: {totalPitVolume}");
 
 		//Calculates the range of bathymetry raster pixels that overlap with the pit's bounding box.
 		int bathStartX = (int)Math.Floor((pitXMin - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * newBathRaster.Width);
 		int bathStartY = (int)Math.Floor((pitYMin - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * newBathRaster.Height);
 		int bathEndX = (int)Math.Ceiling((pitXMax - a_bathymetryRaster.displayed_bounds[0][0]) / bathRasterRealWidth * newBathRaster.Width);
 		int bathEndY = (int)Math.Ceiling((pitYMax - a_bathymetryRaster.displayed_bounds[0][1]) / bathRasterRealHeight * newBathRaster.Height);
+		bathRasterPitIDs.Add(pit.id);
 		bathRasterPitRects.Add(new RasterPixelRect() {
 			m_xMin = bathStartX - BENTHIC_SIM_PIT_BOUNDS_PIXELS, 
 			m_xMax = bathEndX + BENTHIC_SIM_PIT_BOUNDS_PIXELS, 
@@ -408,19 +409,19 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
 				float oldDepth = GetBathymeteryDepthForRaster(newBathRaster[x, newBathRaster.Height - 1 - y].R, a_session);
 				float newDepth = oldDepth + (float)(avgExtractionDepth * coverageFraction);
-				if (MathF.Abs(newDepth - oldDepth) > 0.01f)
-				{
-					Console.WriteLine($"		Extracted {newDepth - oldDepth}m at [{x},{y}]");
-				}
+				//if (MathF.Abs(newDepth - oldDepth) > 0.01f)
+				//{
+				//	Util.LogPitLevel($"Extracted {newDepth - oldDepth}m at [{x},{y}]");
+				//}
 				byte value = GetBathymeteryValueForDepth(newDepth, a_session);
 				newBathRaster[x, newBathRaster.Height-1-y] = new Rgba32(value, value, value);
 			}
 		}
 	}
 
-	foreach (RasterPixelRect rect in bathRasterPitRects)
+	for(int i = 0; i < bathRasterPitRects.Count; i++)
 	{
-		a_session.m_activeBenthicSims.Add(new BenthicSimAreaHandler(rect));
+		a_session.m_activeBenthicSims.Add(new BenthicSimAreaHandler(bathRasterPitRects[i], bathRasterPitIDs[i]));
 	}
 	a_session.m_activeBenthicSims = GetGroupedSimHandles(a_session.m_activeBenthicSims);
 	foreach(BenthicSimAreaHandler sim in a_session.m_activeBenthicSims)
@@ -527,7 +528,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 		//	country = -1 
   //      }
 	};
-	Console.WriteLine($"====== Simulation completed for month {a_session.CurrentMonth}, {a_pitGeometry.Count} pits simulated.");
+	Util.LogSimLevel0($"Internal simulation completed for month {a_session.CurrentMonth}, {bathRasterPitIDs.Count} new pits simulated.");
 	a_session.InternalSimComplete();
 }
 
@@ -609,7 +610,7 @@ List<BenthicSimAreaHandler> GetGroupedSimHandles(List<BenthicSimAreaHandler> a_b
 			if (j == i || groupedPitIndices.Contains(j))
 				continue; //Skip already grouped pit. 
 
-			if (a_bathRasterPitRects[i].AddAreaOnOverlap(a_bathRasterPitRects[j].m_rasterPixelRect))
+			if (a_bathRasterPitRects[i].AddAreaOnOverlap(a_bathRasterPitRects[j]))
 			{
 				// If bounds overlap, add to group and add to grouped indices
 				groupedPitIndices.Add(j);

@@ -71,7 +71,7 @@ public class SessionManager()
 			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
 			WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 		});
-		Console.WriteLine($"Connecting as MCP client");
+		Util.LogAppLevel($"Connecting as MCP client");
 
 		try
 		{
@@ -79,34 +79,34 @@ public class SessionManager()
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine("MCP Server failed to start, message: " + e.Message);
+			Util.LogAppLevel("MCP Server failed to start, message: " + e.Message);
 			if(m_simulationMCP != null)
 				await m_simulationMCP.DisposeAsync().ConfigureAwait(false);
 			throw;
 		}
-		Console.WriteLine("MCP Server connected");
+		Util.LogAppLevel("MCP Server connected");
 		//Set logging level
 		if (m_simulationMCP.ServerCapabilities.Logging is null)
 		{
-			Console.WriteLine("Server does not support logging.");
+			Util.LogAppLevel("Server does not support logging.");
 		}
 		else
 		{
-			Console.WriteLine("Requesting logging level: debug");
+			Util.LogAppLevel("Requesting logging level: debug");
 			await m_simulationMCP.SetLoggingLevelAsync(LoggingLevel.Debug);
 		}
 
 		//Get server instructions
 		if(m_simulationMCP.ServerInstructions != null)
-			Console.WriteLine(m_simulationMCP.ServerInstructions);
+			Util.LogAppLevel(m_simulationMCP.ServerInstructions);
 		else
-			Console.WriteLine("No server instructions specified.");
+			Util.LogAppLevel("No server instructions specified.");
 
 		// Print the list of tools available from the server.
-		Console.WriteLine("Tools available on the server:");
+		Util.LogAppLevel("Tools available on the server:");
 		foreach (var tool in await m_simulationMCP.ListToolsAsync())
 		{
-			Console.WriteLine($" • {tool.Name}: {tool.Description}");
+			Util.LogAppLevel($" - {tool.Name}: {tool.Description}");
 		}
 		//RunTestSimulation();
 	}
@@ -125,7 +125,7 @@ public class SessionManager()
 
     private void Reset()
     {
-        Console.WriteLine("Resetting ProgramManager, all sessions will be removed.");
+		Util.LogAppLevel("Resetting ProgramManager, all sessions will be removed.");
         m_sessions = new Dictionary<string, SimulationSession>();
 	}
     
@@ -236,7 +236,7 @@ public class SessionManager()
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine(e.Message);
+			Util.LogAppLevel("Error in update state request: " + e.Message);
 			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
 		}
 
@@ -252,8 +252,8 @@ public class SessionManager()
 			{
 				// output all aggregated exceptions
 				foreach (var exception in task.Exception!.InnerExceptions)
-					Console.WriteLine(exception.Message);
-				Console.WriteLine($"Session Initialisation for session ({session.SessionToken}) failed. Session will be removed.");
+					Util.LogAppLevel(exception.Message);
+				Util.LogAppLevel($"Session Initialisation for session ({session.SessionToken}) failed. Session will be removed.");
 				m_sessions.Remove(session.SessionToken);
 			}
 			else
@@ -294,7 +294,7 @@ public class SessionManager()
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine(e.Message);
+			Util.LogAppLevel("Error in state update request: " + e.Message);
 			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
 		}
 
@@ -376,13 +376,13 @@ public class SessionManager()
 		var serverId = Environment.GetEnvironmentVariable("SERVER_ID", EnvironmentVariableTarget.User);
 		if (string.IsNullOrEmpty(serverId))
 		{
-			Console.WriteLine("SERVER_ID environment variable is not set. Generating a new one.");
+			Util.LogAppLevel("SERVER_ID environment variable is not set. Generating a new one.");
 			// Generate a new UUID, save it back to the .env file
 			serverId = Guid.NewGuid().ToString();
 			Environment.SetEnvironmentVariable("SERVER_ID", serverId, EnvironmentVariableTarget.User);
 			File.AppendAllText(".env.local", $"SERVER_ID={serverId}{Environment.NewLine}");
 		}
-		Console.WriteLine($"Server ID: {serverId}");
+		Util.LogAppLevel($"Server ID: {serverId}");
         return serverId;
 	}
 
@@ -395,8 +395,8 @@ public class SessionManager()
 			{
 				// output all aggregated exceptions
 				foreach (var exception in task.Exception!.InnerExceptions)
-					Console.WriteLine(exception.Message);
-				Console.WriteLine($"Session Initialisation for session ({a_session.SessionToken}) failed. Session will be removed.");
+					Util.LogAppLevel(exception.Message);
+				Util.LogAppLevel($"Session Initialisation for session ({a_session.SessionToken}) failed. Session will be removed.");
 				m_sessions.Remove(a_session.SessionToken);
 			}
 			// Notify that setup has been entered, does not need to be awaited
@@ -461,7 +461,7 @@ public class SessionManager()
 			["nodata"] = 0
 		};
 
-		Console.WriteLine("Creating test simulation");
+		Util.LogAppLevel("Creating test simulation");
 		// Execute a tool (this would normally be driven by LLM tool invocations).
 		var result = await m_simulationMCP.CallToolAsync(
 			"create_simulation",
@@ -480,13 +480,13 @@ public class SessionManager()
 
 		if (result.IsError.HasValue && result.IsError.Value)
 		{
-			Console.WriteLine($"   Creating test simulation failed. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
+			Util.LogAppLevel($"Creating test simulation failed. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
 			return;
 		}
 
 		SimulationCallResult callResult = JsonConvert.DeserializeObject<SimulationCallResult>(result.Content.OfType<TextContentBlock>().First().Text);
 		string simulationID = callResult.simulation_id;
-		Console.WriteLine("   Test simulation started, ID is: " + callResult.simulation_id);
+		Util.LogAppLevel("Test simulation started, ID is: " + callResult.simulation_id);
 
 		//Poll simulation results
 		while (true)
@@ -500,20 +500,20 @@ public class SessionManager()
 				cancellationToken: CancellationToken.None);
 			if (simPollResultCall.IsError.HasValue && simPollResultCall.IsError.Value)
 			{
-				Console.WriteLine($"Test simulation with ID [{simulationID}] failed. Error message: {simPollResultCall.Content.OfType<TextContentBlock>().First().Text}");
+				Util.LogSessionLevel($"Test simulation with ID [{simulationID}] failed. Error message: {simPollResultCall.Content.OfType<TextContentBlock>().First().Text}");
 				return;
 			}
 			SimulationStatusResult pollCallResult = JsonConvert.DeserializeObject<SimulationStatusResult>(simPollResultCall.Content.OfType<TextContentBlock>().First().Text);
 			if (pollCallResult.Failed)
 			{
-				Console.WriteLine($"Test simulation with ID [{simulationID}] failed. Error message: {pollCallResult.error_message}");
+				Util.LogSessionLevel($"Test simulation with ID [{simulationID}] failed. Error message: {pollCallResult.error_message}");
 				return;
 			}
 			else if (pollCallResult.Completed)
 			{
 				if (simulationID == null)
 					return;
-				Console.WriteLine($"   Test simulation with ID [{simulationID}] completed! Fetching results.");
+				Util.LogSessionLevel($"Test simulation with ID [{simulationID}] completed! Fetching results.");
 				var simResultCall = await m_simulationMCP.CallToolAsync(
 					"get_simulation_results",
 					new Dictionary<string, object?>()
@@ -521,19 +521,19 @@ public class SessionManager()
 						["simulation_id"] = simulationID
 					},
 					cancellationToken: CancellationToken.None);
-				Console.WriteLine("   Test simulation results received.");
+				Util.LogSessionLevel("Test simulation results received.");
 				if(simResultCall.IsError.HasValue && simResultCall.IsError.Value)
 				{
-					Console.WriteLine($"Getting test simulation results failed. Message: {simResultCall.Content.OfType<TextContentBlock>().First().Text}");
+					Util.LogSessionLevel($"Getting test simulation results failed. Message: {simResultCall.Content.OfType<TextContentBlock>().First().Text}");
 					return;
 				}
 				SimulationResults simResult = JsonConvert.DeserializeObject<SimulationResults>(simResultCall.Content.OfType<TextContentBlock>().First().Text);
-				Console.WriteLine($"   Test simulation result net change: {simResult.summary.impact.sum_net_change_individuals}");
-				Console.WriteLine($"   Test simulation result mean percent change: {simResult.summary.impact.mean_percent_change}");
-				Console.WriteLine("Test simulation successfull!");
+				Util.LogSessionLevel($"Test simulation result net change: {simResult.summary.impact.sum_net_change_individuals}");
+				Util.LogSessionLevel($"Test simulation result mean percent change: {simResult.summary.impact.mean_percent_change}");
+				Util.LogSessionLevel("Test simulation successfull!");
 				return;
 			}
-			Console.WriteLine($"   Progress of test simulation with ID [{simulationID}]: {pollCallResult.progress}%. Status: {pollCallResult.status}");
+			Util.LogSessionLevel($"Progress of test simulation with ID [{simulationID}]: {pollCallResult.progress}%. Status: {pollCallResult.status}");
 			await Task.Delay(1000);
 		}
 	}

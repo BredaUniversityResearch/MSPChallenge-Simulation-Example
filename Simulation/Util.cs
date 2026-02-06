@@ -101,6 +101,36 @@ namespace MSPChallenge_Simulation.Simulation
 					new Vector2(a_lineString[i + 1][0], a_lineString[i + 1][1])));
 			return (float)Math.Sqrt(result);
 		}
+
+		public static void LogAppLevel(string a_text)
+		{
+			Console.WriteLine(a_text);
+		}
+
+		public static void LogSessionLevel(string a_text)
+		{
+			Console.WriteLine("   " + a_text);
+		}
+
+		public static void LogSimLevel0(string a_text)
+		{
+			Console.WriteLine("      " + a_text);
+		}
+
+		public static void LogSimLevel1(string a_text)
+		{
+			Console.WriteLine("         " + a_text);
+		}
+
+		public static void LogSimLevel2(string a_text)
+		{
+			Console.WriteLine("            " + a_text);
+		}
+
+		public static void LogSimLevel3(string a_text)
+		{
+			Console.WriteLine("               " + a_text);
+		}
 	}
 }
 

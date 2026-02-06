@@ -4,27 +4,32 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
+using System;
 
 namespace MSPChallenge_Simulation.Simulation;
 
 public class BenthicSimAreaHandler
 {
 	public enum ExternalSimStatus { Unscheduled, AwaitingCreate, AwaitingResultsIdle, AwaitingResultsPolled, AwaitingResultsFetch, Completed, Failed }
+	public enum SimDetailLevel { Fast, Medium, Fine }
 
 	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
+	SimDetailLevel m_detail = SimDetailLevel.Fast;
 	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;
 	public SimulationRasterResults? m_resultsRaster;
+	public List<int> m_pitIDs;
 
 	public ExternalSimStatus Status => m_status;
 	public string? ID => m_simID;
 
-	public BenthicSimAreaHandler(RasterPixelRect a_rasterPixelRect)
+	public BenthicSimAreaHandler(RasterPixelRect a_rasterPixelRect, int a_pitID)
 	{
 		m_rasterPixelRect = a_rasterPixelRect;
+		m_pitIDs = new List<int>() { a_pitID};
 	}
 
 	void ResetRequest()
@@ -38,13 +43,14 @@ public class BenthicSimAreaHandler
 		//DOES NOT RESET RECT!
 	}
 
-	public bool AddAreaOnOverlap(RasterPixelRect a_newRasterPixelRect)
+	public bool AddAreaOnOverlap(BenthicSimAreaHandler a_other)
 	{
 		//If area changes, it will have to be resimulated, so it is Reset.
-		if (m_rasterPixelRect.Overlaps(a_newRasterPixelRect))
+		if (m_rasterPixelRect.Overlaps(a_other.m_rasterPixelRect))
 		{
-			m_rasterPixelRect.AddBounds(a_newRasterPixelRect);
-			if(m_status != ExternalSimStatus.Unscheduled)
+			m_rasterPixelRect.AddBounds(a_other.m_rasterPixelRect);
+			m_pitIDs.AddRange(a_other.m_pitIDs);
+			if (m_status != ExternalSimStatus.Unscheduled)
 				ResetRequest();
 			return true;
 		}
@@ -96,16 +102,34 @@ public class BenthicSimAreaHandler
 
 	async void CreateSimInternal(McpClient a_MCPClient)
 	{
+		Dictionary<string, object?> settings = new Dictionary<string, object?>()
+		{
+			["scenario_type"] = "dredging",
+			["delta_raster"] = m_jsonGeotiff,
+			["scenario_name"] = "MSPC_SE_Pit",
+			["generate_plots"] = false
+		};
+
+		if(m_detail == SimDetailLevel.Fast)
+		{
+			settings["prediction_grid"] = "model";
+		}
+		else if(m_detail == SimDetailLevel.Medium)
+		{
+			settings["prediction_grid"] = "delta";
+			settings["baseline_bathymetry"] = "data/raw/depth_IHM_UTM.rds";
+			settings["compute_bpi_onthefly"] = true;
+		}
+		else
+		{
+			settings["prediction_grid"] = "fine";
+			settings["baseline_bathymetry"] = "data/raw/depth_IHM_UTM.rds";
+			settings["compute_bpi_onthefly"] = true;
+		}
+
 		var result = await a_MCPClient.CallToolAsync(
 			"create_simulation",
-			new Dictionary<string, object?>()
-			{
-				["scenario_type"] = "dredging",
-				["delta_raster"] = m_jsonGeotiff,
-				["scenario_name"] = "MSPC_SE_Pit",
-				["prediction_grid"] = "model",
-				["generate_plots"] = false
-			},
+			settings,
 			cancellationToken: CancellationToken.None);
 		if (result.IsError.HasValue && result.IsError.Value)
 		{
@@ -145,7 +169,7 @@ public class BenthicSimAreaHandler
 		SimulationStatusResult callResult = JsonConvert.DeserializeObject<SimulationStatusResult>(simPollResultCall.Content.OfType<TextContentBlock>().First().Text);
 		if (callResult.Failed)
 		{
-			Console.WriteLine($"Polling simulation with ID [{m_simID}] failed. Error message: {callResult.error_message}");
+			Util.LogSimLevel1($"Polling simulation with ID [{m_simID}] failed. Error message: {callResult.error_message}");
 			m_status = ExternalSimStatus.Failed;
 			return;
 		}
@@ -153,13 +177,13 @@ public class BenthicSimAreaHandler
 		{
 			if (m_status == ExternalSimStatus.Failed) //check for intermediate failure (cancellation)
 				return;
-			Console.WriteLine($"Simulation with ID [{m_simID}] completed! Fetching results.");
+			Util.LogSimLevel1($"Simulation with ID [{m_simID}] completed! Fetching results.");
 			m_status = ExternalSimStatus.AwaitingResultsFetch;
 			FetchResults(a_MCPClient);
 		}
 		else
 		{
-			Console.WriteLine($"Progress of simulation with ID [{m_simID}]: {callResult.progress}%. Status: {callResult.status}");
+			Util.LogSimLevel2($"Progress of simulation with ID [{m_simID}]: {callResult.progress}%. Status: {callResult.status}");
 			m_status = ExternalSimStatus.AwaitingResultsIdle;
 		}
 	}
@@ -201,8 +225,8 @@ public class BenthicSimAreaHandler
 		}
 		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultRasterCall.Content.OfType<TextContentBlock>().First().Text);
 		m_status = ExternalSimStatus.Completed;
-		Console.WriteLine($"Simulation with ID [{m_simID}] results fetched.");
-		Console.WriteLine($"Simulation result net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
-		Console.WriteLine($"Simulation result mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");
+		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
+		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
+		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");
 	}
 }
