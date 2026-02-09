@@ -373,8 +373,7 @@ public class SimulationSession
 		{
 			Util.LogSimLevel1($"Failed to aggregate simulation results. Error message: {result.Content.OfType<TextContentBlock>().First().Text}");
 			return;
-		}
-		SimulationResultsAggregation callResult = JsonConvert.DeserializeObject<SimulationResultsAggregation>(result.Content.OfType<TextContentBlock>().First().Text);
+		}SimulationResultsAggregation callResult = JsonConvert.DeserializeObject<SimulationResultsAggregation>(result.Content.OfType<TextContentBlock>().First().Text);
 		if (callResult == null)
 		{
 			m_kpis.Add(new KPI()
@@ -382,7 +381,16 @@ public class SimulationSession
 				name = "Total Net Change",
 				type = "SandExtraction",
 				value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
-				unit = "",
+				unit = "Individuals",
+				month = CurrentMonth,
+				country = -1
+			});
+			m_kpis.Add(new KPI()
+			{
+				name = "Total Mean Percent Change",
+				type = "SandExtraction",
+				value = m_simAggregationResult == null ? 0f : m_simAggregationResult.weighted_mean_percent_change,
+				unit = "%",
 				month = CurrentMonth,
 				country = -1
 			});
@@ -395,7 +403,16 @@ public class SimulationSession
 				name = "Total Net Change",
 				type = "SandExtraction",
 				value = m_simAggregationResult.total_net_change_individuals,
-				unit = "",
+				unit = "Individuals",
+				month = CurrentMonth,
+				country = -1
+			});
+			m_kpis.Add(new KPI()
+			{
+				name = "Total Mean Percent Change",
+				type = "SandExtraction",
+				value = m_simAggregationResult.weighted_mean_percent_change,
+				unit = "%",
 				month = CurrentMonth,
 				country = -1
 			});
@@ -461,7 +478,16 @@ public class SimulationSession
 			name = "Total Net Change",
 			type = "SandExtraction",
 			value = m_simAggregationResult == null ? 0f : m_simAggregationResult.total_net_change_individuals,
-			unit = "",
+			unit = "Individuals",
+			month = CurrentMonth,
+			country = -1
+		});
+		m_kpis.Add(new KPI()
+		{
+			name = "Total Mean Percent Change",
+			type = "SandExtraction",
+			value = m_simAggregationResult == null ? 0f : m_simAggregationResult.weighted_mean_percent_change,
+			unit = "%",
 			month = CurrentMonth,
 			country = -1
 		});

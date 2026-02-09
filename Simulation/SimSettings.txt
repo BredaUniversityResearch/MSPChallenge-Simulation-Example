@@ -33,10 +33,19 @@
    },
    {
      "categoryName": "Benthos Individuals",
-     "unit": "",
+     "unit": "Individuals",
      "valueDefinitions": [
        {
          "valueName": "Total Net Change"
+       }
+     ]
+   },
+   {
+     "categoryName": "Benthos Biomass",
+     "unit": "%",
+     "valueDefinitions": [
+       {
+         "valueName": "Total Mean Percent Change"
        }
      ]
    }
