@@ -4,19 +4,23 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
+using DotSpatial.Projections;
 using System;
 
 namespace MSPChallenge_Simulation.Simulation;
 
 public class BenthicSimAreaHandler
 {
+	public const string MSPCProjString = "EPSG:3035";
+	public const int MSPCProjEPSG = 3035;
+
 	public enum ExternalSimStatus { Unscheduled, AwaitingCreate, AwaitingResultsIdle, AwaitingResultsPolled, AwaitingResultsFetch, Completed, Failed }
 	public enum SimDetailLevel { Fast, Medium, Fine }
 
 	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
-	SimDetailLevel m_detail = SimDetailLevel.Fast;
+	SimDetailLevel m_detail = SimDetailLevel.Fine;
 	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;
@@ -65,7 +69,7 @@ public class BenthicSimAreaHandler
 		GeoTIFF deltaRaster = new GeoTIFF()
 		{
 			data = new float[m_rasterPixelRect.m_xMax - m_rasterPixelRect.m_xMin, m_rasterPixelRect.m_yMax - m_rasterPixelRect.m_yMin],
-			crs = "EPSG:3035",
+			crs = MSPCProjString,
 			extent = new float[] {
 				(float)(a_rasterBounds[0][0] + m_rasterPixelRect.m_xMin * a_realPixelWidth),
 				(float)(a_rasterBounds[0][1] + m_rasterPixelRect.m_yMin * a_realPixelHeight),
@@ -109,6 +113,7 @@ public class BenthicSimAreaHandler
 			["scenario_name"] = "MSPC_SE_Pit",
 			["generate_plots"] = false
 		};
+		Console.WriteLine(m_jsonGeotiff);
 
 		if(m_detail == SimDetailLevel.Fast)
 		{
@@ -228,5 +233,23 @@ public class BenthicSimAreaHandler
 		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
 		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
 		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");
+	}
+
+	float[] ReprojectBounds(float[] a_bounds, string a_crs)
+	{
+		int externalEPSG = 0;
+		if(!int.TryParse(a_crs.Remove(0,5), out externalEPSG)) // Removes the "EPSG:" part of the crs
+		{
+			Console.WriteLine("ERROR: Failed to parse external CRS when converting raster bounds: " + a_crs);
+			return new float[] {0f, 0f, 0f, 0f};
+		}
+		ProjectionInfo MSPCProj = ProjectionInfo.FromEpsgCode(MSPCProjEPSG);
+		ProjectionInfo externalProj = ProjectionInfo.FromEpsgCode(externalEPSG);
+
+		double[] p = new double[] { a_bounds[0], a_bounds[1], a_bounds[2], a_bounds[3] };
+		double[] z = new double[] { 1d };
+		Reproject.ReprojectPoints(p, z, externalProj, MSPCProj, 0, 2);
+
+		return new float[] { (float)p[0], (float)p[1], (float)p[2], (float)p[3] };
 	}
 }
