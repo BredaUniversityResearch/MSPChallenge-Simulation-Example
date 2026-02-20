@@ -51,6 +51,7 @@ public class SimulationSession
 	public LayerMeta m_sandDepthMeta;
 	public LayerMeta m_pitsMeta;
 	public LayerMeta m_shoreLineMeta;
+	public LayerMeta m_benthicImpactMeta;
 	public float[,] m_distanceToShoreRaster; //Has the same resolution as sandDepth raster
 	public double m_totalExtractedVolume = 0d;
 	//public double m_totalDTS = 0d;
@@ -61,6 +62,7 @@ public class SimulationSession
 	public List<KPI> m_kpis;
 	public string m_newBathymetryRaster;
 	public string m_newSandDepthRaster;
+	public string m_newBenthicImpactRaster;
 
 	public int CurrentMonth => m_currentMonth;
 	public int CurrentSimMonth => m_currentMonth-1;
@@ -315,6 +317,11 @@ public class SimulationSession
 				await m_mspClient.HttpPost(API_SET_RASTER,
 					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster }, { "month", m_currentMonth.ToString() } });
 			}
+			if (m_newBenthicImpactRaster != null)
+			{
+				await m_mspClient.HttpPost(API_SET_RASTER,
+					new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster }, { "month", m_currentMonth.ToString() } });
+			}
 			if (m_kpis == null)
 			{
 				Util.LogSimLevel1("No KPIs set, sending empty KPI Set request");
@@ -417,6 +424,8 @@ public class SimulationSession
 				country = -1
 			});
 		}
+		CombineImpactRasters();
+
 		Util.LogSimLevel2($"Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
 		Util.LogSimLevel2($"Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
 
@@ -439,6 +448,8 @@ public class SimulationSession
 			m_pitsMeta = a_meta;
 		else if (a_internalLayerID == 3)
 			m_shoreLineMeta = a_meta;
+		else if (a_internalLayerID == 4)
+			m_benthicImpactMeta = a_meta;
 	}
 
 	public void InternalSimComplete()
@@ -469,6 +480,39 @@ public class SimulationSession
 				m_simulationState = SimulationState.External;
 			}
 		}
+	}
+
+	void CombineImpactRasters()
+	{
+		int index = m_activeBenthicSims[0].m_resultsRaster.data.IndexOf(',');
+		string base64 = m_activeBenthicSims[0].m_resultsRaster.data.Substring(index + 1);
+		using Image<Rgba32> baseRaster = Image.Load<Rgba32>(Convert.FromBase64String(base64));
+		for (int i = 1; i < m_activeBenthicSims.Count; i++)
+		{
+			index = m_activeBenthicSims[i].m_resultsRaster.data.IndexOf(',');
+			base64 = m_activeBenthicSims[i].m_resultsRaster.data.Substring(index + 1);
+			using Image<Rgba32> addRaster = Image.Load<Rgba32>(Convert.FromBase64String(base64));
+			baseRaster.ProcessPixelRows(addRaster, (sourceAccessor, targetAccessor) =>
+			{
+				for (int y = 0; y < baseRaster.Height; y++)
+				{
+					Span<Rgba32> sourceRow = sourceAccessor.GetRowSpan(y);
+					Span<Rgba32> targetRow = targetAccessor.GetRowSpan(y);
+					for (int x = 0; x < sourceRow.Length; x++)
+					{
+						ref Rgba32 pixel = ref sourceRow[x];
+						if (pixel.R < targetRow[x].R)
+						{
+							pixel = new Rgba32(targetRow[x].R, targetRow[x].R, targetRow[x].R);
+						}
+					}
+				}
+			});
+
+		}
+		using MemoryStream stream2 = new(16384);
+		baseRaster.Save(stream2, new PngEncoder());
+		m_newBenthicImpactRaster = Convert.ToBase64String(stream2.ToArray());
 	}
 
 	void SkipAggregation()

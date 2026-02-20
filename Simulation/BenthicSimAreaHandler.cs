@@ -20,7 +20,7 @@ public class BenthicSimAreaHandler
 	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
-	SimDetailLevel m_detail = SimDetailLevel.Fine;
+	SimDetailLevel m_detail = SimDetailLevel.Fast;
 	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;
@@ -113,7 +113,7 @@ public class BenthicSimAreaHandler
 			["scenario_name"] = "MSPC_SE_Pit",
 			["generate_plots"] = false
 		};
-		Console.WriteLine(m_jsonGeotiff);
+		//Console.WriteLine(m_jsonGeotiff);
 
 		if(m_detail == SimDetailLevel.Fast)
 		{
@@ -218,7 +218,7 @@ public class BenthicSimAreaHandler
 				new Dictionary<string, object?>()
 				{
 					["simulation_id"] = m_simID,
-					["layer"] = "modified"
+					["layer"] = "impact"
 				},
 				cancellationToken: CancellationToken.None);
 
@@ -230,6 +230,9 @@ public class BenthicSimAreaHandler
 		}
 		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultRasterCall.Content.OfType<TextContentBlock>().First().Text);
 		m_status = ExternalSimStatus.Completed;
+		m_resultsRaster.bounds = ReprojectBounds(m_resultsRaster.bounds, m_resultsRaster.crs);
+		m_resultsRaster.crs = null;
+		//Console.WriteLine(m_resultsRaster.data);
 		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
 		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
 		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");
@@ -247,7 +250,7 @@ public class BenthicSimAreaHandler
 		ProjectionInfo externalProj = ProjectionInfo.FromEpsgCode(externalEPSG);
 
 		double[] p = new double[] { a_bounds[0], a_bounds[1], a_bounds[2], a_bounds[3] };
-		double[] z = new double[] { 1d };
+		double[] z = new double[] { 1d , 1d };
 		Reproject.ReprojectPoints(p, z, externalProj, MSPCProj, 0, 2);
 
 		return new float[] { (float)p[0], (float)p[1], (float)p[2], (float)p[3] };

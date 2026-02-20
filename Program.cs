@@ -8,9 +8,9 @@ using MSPChallenge_Simulation.Simulation;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
-using Newtonsoft.Json;
 using Clipper2Lib;
 using ModelContextProtocol.Client;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System.Collections.Generic;
 
@@ -43,10 +43,11 @@ Task InitialiseSession(SimulationSession a_session)
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
 	Task t4 = GetLayerMeta(a_session, "Line,Coast", 3);
+	Task t5 = GetLayerMeta(a_session, "ValueMap,SandAndGravel,Biomass", 4);
 
 	return Task.Run(async () =>
 	{
-		await Task.WhenAll(t1, t2, t3, t4);
+		await Task.WhenAll(t1, t2, t3, t4, t5);
 		await CalculateDTSRaster(a_session);
 	});
 }
