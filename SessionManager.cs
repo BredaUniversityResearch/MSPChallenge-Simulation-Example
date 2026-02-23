@@ -66,10 +66,10 @@ public class SessionManager()
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
 			Name = "BenthosSim",
-			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data:ro -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
+			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
 			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data henriqueguarneri/benthic-impact-assessment",
-			WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			//WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
+			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
+			WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 		});
 		Util.LogAppLevel($"Connecting as MCP client");
 
@@ -383,6 +383,10 @@ public class SessionManager()
 			File.AppendAllText(".env.local", $"SERVER_ID={serverId}{Environment.NewLine}");
 		}
 		Util.LogAppLevel($"Server ID: {serverId}");
+		Util.LogAppLevel("Address: host.docker.internal");
+		Util.LogAppLevel("Port: 5026");
+		Util.LogAppLevel("Simulation settings:");
+		Util.LogAppLevel(File.ReadAllText("SimSettings.txt"));
         return serverId;
 	}
 

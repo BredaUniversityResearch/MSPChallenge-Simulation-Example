@@ -1,11 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MSPChallenge_Simulation_Example</RootNamespace>
+    <ApplicationIcon>ApplicationIcon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="ApplicationIcon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Clipper2" Version="2.0.0" />
@@ -29,6 +35,12 @@
 
   <ItemGroup>
     <Folder Include="README-source\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="SimSettings.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
