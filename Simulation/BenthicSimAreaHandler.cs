@@ -233,6 +233,7 @@ public class BenthicSimAreaHandler
 		m_resultsRaster.bounds = ReprojectBounds(m_resultsRaster.bounds, m_resultsRaster.crs);
 		m_resultsRaster.crs = null;
 		//Console.WriteLine(m_resultsRaster.data);
+		//Console.WriteLine($"{m_resultsRaster.bounds[0]}, {m_resultsRaster.bounds[1]}, {m_resultsRaster.bounds[2]}, {m_resultsRaster.bounds[3]}");
 		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
 		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
 		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");
