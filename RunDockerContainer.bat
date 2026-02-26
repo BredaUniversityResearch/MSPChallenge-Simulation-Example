@@ -1,0 +1,1 @@
+ docker run -p 5026:5000 -v /var/run/docker.sock:/var/run/docker.sock se_sim_image

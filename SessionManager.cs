@@ -62,6 +62,25 @@ public class SessionManager()
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
 
+
+
+		Console.WriteLine("Executing test console command");
+		Process cmd = new Process();
+		cmd.StartInfo.FileName = "cmd.exe";
+		cmd.StartInfo.RedirectStandardInput = true;
+		cmd.StartInfo.RedirectStandardOutput = true;
+		cmd.StartInfo.CreateNoWindow = true;
+		cmd.StartInfo.UseShellExecute = false;
+
+		cmd.Start();
+
+		/* execute "dir" */
+
+		cmd.StandardInput.WriteLine("docker image");
+		cmd.StandardInput.Flush();
+		cmd.StandardInput.Close();
+		Console.WriteLine(cmd.StandardOutput.ReadToEnd());
+
 		InitialiseMCP();
 	}
 
