@@ -64,22 +64,22 @@ public class SessionManager()
 
 
 
-		Console.WriteLine("Executing test console command");
-		Process cmd = new Process();
-		cmd.StartInfo.FileName = "cmd.exe";
-		cmd.StartInfo.RedirectStandardInput = true;
-		cmd.StartInfo.RedirectStandardOutput = true;
-		cmd.StartInfo.CreateNoWindow = true;
-		cmd.StartInfo.UseShellExecute = false;
+		//Console.WriteLine("Executing test console command");
+		//Process cmd = new Process();
+		//cmd.StartInfo.FileName = "cmd.exe";
+		//cmd.StartInfo.RedirectStandardInput = true;
+		//cmd.StartInfo.RedirectStandardOutput = true;
+		//cmd.StartInfo.CreateNoWindow = true;
+		//cmd.StartInfo.UseShellExecute = false;
 
-		cmd.Start();
+		//cmd.Start();
 
-		/* execute "dir" */
+		///* execute "dir" */
 
-		cmd.StandardInput.WriteLine("docker image");
-		cmd.StandardInput.Flush();
-		cmd.StandardInput.Close();
-		Console.WriteLine(cmd.StandardOutput.ReadToEnd());
+		//cmd.StandardInput.WriteLine("docker image");
+		//cmd.StandardInput.Flush();
+		//cmd.StandardInput.Close();
+		//Console.WriteLine(cmd.StandardOutput.ReadToEnd());
 
 		InitialiseMCP();
 	}
@@ -89,10 +89,9 @@ public class SessionManager()
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
 			Name = "BenthosSim",
-			Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
+			Command = "docker run -i --rm --name BenthosSim --mount type=volume,src=data,dst=/app/data --mount type=volume,src=cache,dst=/app/data/cache henriqueguarneri/benthic-impact-assessment",
+			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
 			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data henriqueguarneri/benthic-impact-assessment",
-			//WorkingDirectory = "C:/ProjectsWork/OrElse/BenthicImpactAssessment",
-			//WorkingDirectory = "C:/Projects/OrElse/BenthicSim"
 			WorkingDirectory = AppContext.BaseDirectory
 		});
 		Util.LogAppLevel($"Connecting as MCP client");
