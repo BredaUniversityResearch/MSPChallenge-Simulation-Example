@@ -86,14 +86,20 @@ public class SessionManager()
 
 	async Task InitialiseMCP()
 	{
+		var loggerFactory = LoggerFactory.Create(builder => {
+			builder.SetMinimumLevel(LogLevel.Debug).AddConsole();
+		});
+
 		var clientTransport = new StdioClientTransport(new StdioClientTransportOptions
 		{
 			Name = "BenthosSim",
-			Command = "docker run -i --rm --name BenthosSim --mount type=volume,src=data,dst=/app/data --mount type=volume,src=cache,dst=/app/data/cache henriqueguarneri/benthic-impact-assessment",
+			Command = "docker",
+			Arguments = ["run", "-i", "--rm", "--name", "BenthosSim", "--mount", "type=volume,src=data,dst=/app/data", "--mount", "type=volume,src=cache,dst=/app/data/cache", "henriqueguarneri/benthic-impact-assessment"], 
+			//Command = "docker run -i --rm --name BenthosSim --mount type=volume,src=data,dst=/app/data --mount type=volume,src=cache,dst=/app/data/cache henriqueguarneri/benthic-impact-assessment",
 			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data -v ./cache:/app/data/cache henriqueguarneri/benthic-impact-assessment",
 			//Command = "docker run -i --rm --name BenthosSim -v ./data:/app/data henriqueguarneri/benthic-impact-assessment",
-			WorkingDirectory = AppContext.BaseDirectory
-		});
+			WorkingDirectory =  AppContext.BaseDirectory
+		}, loggerFactory);
 		Util.LogAppLevel($"Connecting as MCP client");
 		
 		try
@@ -108,6 +114,7 @@ public class SessionManager()
 			throw;
 		}
 		Util.LogAppLevel("MCP Server connected");
+
 		//Set logging level
 		if (m_simulationMCP.ServerCapabilities.Logging is null)
 		{
