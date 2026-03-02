@@ -41,6 +41,9 @@
     <None Update="dockerfile">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="DownloadModelData.bat">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="RunDockerContainer.bat">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
