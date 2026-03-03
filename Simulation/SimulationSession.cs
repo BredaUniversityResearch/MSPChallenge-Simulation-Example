@@ -317,15 +317,15 @@ public class SimulationSession
 				await m_mspClient.HttpPost(API_SET_RASTER,
 					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster }, { "month", m_currentMonth.ToString() } });
 			}
-			if (m_newBenthicImpactRaster != null)
-			{
-				float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
-					{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
-				await m_mspClient.HttpPost(API_SET_RASTER,
-					new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster }, 
-						{ "month", m_currentMonth.ToString() }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
-				Console.WriteLine(m_newBenthicImpactRaster);
-			}
+			//if (m_newBenthicImpactRaster != null)
+			//{
+			//	float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
+			//		{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
+			//	await m_mspClient.HttpPost(API_SET_RASTER,
+			//		new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster }, 
+			//			{ "month", m_currentMonth.ToString() }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
+			//	Console.WriteLine(m_newBenthicImpactRaster);
+			//}
 			if (m_kpis == null)
 			{
 				Util.LogSimLevel1("No KPIs set, sending empty KPI Set request");
@@ -428,7 +428,7 @@ public class SimulationSession
 				country = -1
 			});
 		}
-		CombineImpactRasters();
+		//CombineImpactRasters();
 
 		Util.LogSimLevel2($"Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
 		Util.LogSimLevel2($"Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
