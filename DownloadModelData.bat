@@ -1,5 +1,6 @@
 docker pull henriqueguarneri/benthic-impact-assessment:latest
-mkdir data
+docker volume create data
+docker volume create cache
 echo "Downloading model data. This will take 10~15 minutes without visible progress until complete."
-docker run --rm -v ./data:/app/data henriqueguarneri/benthic-impact-assessment python scripts/sync_data.py download
+docker run --rm --mount type=volume,src=data,dst=/app/data henriqueguarneri/benthic-impact-assessment python scripts/sync_data.py download
 pause
