@@ -22,6 +22,6 @@ COPY ${source_dir} /app
 RUN chmod +x /app/MSPChallenge-Simulation
 
 # Define the entrypoint to run the .NET app
-ENTRYPOINT ["sh", "-c", "./MSPChallenge-Simulation"]
-
+#   Dot not use default port 5000, since that will add a host "localhost" restriction
+ENTRYPOINT ["sh", "-c", "./MSPChallenge-Simulation --port 5026"]
 

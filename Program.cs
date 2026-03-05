@@ -43,11 +43,11 @@ Task InitialiseSession(SimulationSession a_session)
 	Task t2 = GetLayerMeta(a_session, "ValueMap,SandDepth,SandAndGravel", 1);
 	Task t3 = GetLayerMeta(a_session, "Polygon,SandAndGravel,Extraction", 2);
 	Task t4 = GetLayerMeta(a_session, "Line,Coast", 3);
-	//Task t5 = GetLayerMeta(a_session, "ValueMap,SandAndGravel,Biomass", 4);
+	Task t5 = GetLayerMeta(a_session, "ValueMap,SandAndGravel,Biomass", 4);
 
 	return Task.Run(async () =>
 	{
-		await Task.WhenAll(t1, t2, t3, t4/*, t5*/);
+		await Task.WhenAll(t1, t2, t3, t4, t5);
 		await CalculateDTSRaster(a_session);
 	});
 }
@@ -519,15 +519,6 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 			month = a_session.CurrentMonth,
 			country = -1
 		}
-		//,
-		//new KPI() {
-		//	name = "Total DTS",
-		//	type = "EXTERNAL",
-		//	value = a_session.m_totalDTS,
-		//	unit = "km",
-		//	month = a_session.CurrentMonth,
-		//	country = -1 
-  //      }
 	};
 	Util.LogSimLevel0($"Internal simulation completed for month {a_session.CurrentMonth}, {bathRasterPitIDs.Count} new pits simulated.");
 	a_session.InternalSimComplete();

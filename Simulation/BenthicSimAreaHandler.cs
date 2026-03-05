@@ -20,7 +20,7 @@ public class BenthicSimAreaHandler
 	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
-	SimDetailLevel m_detail = SimDetailLevel.Fine;
+	SimDetailLevel m_detail = SimDetailLevel.Fast;
 	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;

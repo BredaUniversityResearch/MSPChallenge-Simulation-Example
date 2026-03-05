@@ -317,15 +317,15 @@ public class SimulationSession
 				await m_mspClient.HttpPost(API_SET_RASTER,
 					new NameValueCollection { { "layer_name", m_bathymetryMeta.layer_name }, { "image_data", m_newBathymetryRaster }, { "month", m_currentMonth.ToString() } });
 			}
-			//if (m_newBenthicImpactRaster != null)
-			//{
-			//	float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
-			//		{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
-			//	await m_mspClient.HttpPost(API_SET_RASTER,
-			//		new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster }, 
-			//			{ "month", m_currentMonth.ToString() }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
-			//	Console.WriteLine(m_newBenthicImpactRaster);
-			//}
+			if (m_newBenthicImpactRaster != null)
+			{
+				float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
+					{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
+				await m_mspClient.HttpPost(API_SET_RASTER,
+					new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster },
+						{ "month", m_currentMonth.ToString() }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
+				Console.WriteLine(m_newBenthicImpactRaster);
+			}
 			if (m_kpis == null)
 			{
 				Util.LogSimLevel1("No KPIs set, sending empty KPI Set request");
@@ -428,7 +428,7 @@ public class SimulationSession
 				country = -1
 			});
 		}
-		//CombineImpactRasters();
+		CombineImpactRasters();
 
 		Util.LogSimLevel2($"Aggregated result net indivisuals change: {callResult.total_net_change_individuals}");
 		Util.LogSimLevel2($"Aggregated result mean percent change: {callResult.weighted_mean_percent_change}");
@@ -490,32 +490,38 @@ public class SimulationSession
 	{
 		int index = m_activeBenthicSims[0].m_resultsRaster.data.IndexOf(',');
 		string base64 = m_activeBenthicSims[0].m_resultsRaster.data.Substring(index + 1);
-		using Image<Rgba32> baseRaster = Image.Load<Rgba32>(Convert.FromBase64String(base64));
+		using Image<Float32> baseRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
+		Console.WriteLine(base64);
 		for (int i = 1; i < m_activeBenthicSims.Count; i++)
 		{
 			index = m_activeBenthicSims[i].m_resultsRaster.data.IndexOf(',');
 			base64 = m_activeBenthicSims[i].m_resultsRaster.data.Substring(index + 1);
-			using Image<Rgba32> addRaster = Image.Load<Rgba32>(Convert.FromBase64String(base64));
+			Console.WriteLine(base64);
+			using Image<Float32> addRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
 			baseRaster.ProcessPixelRows(addRaster, (sourceAccessor, targetAccessor) =>
 			{
 				for (int y = 0; y < baseRaster.Height; y++)
 				{
-					Span<Rgba32> sourceRow = sourceAccessor.GetRowSpan(y);
-					Span<Rgba32> targetRow = targetAccessor.GetRowSpan(y);
+					Span<Float32> sourceRow = sourceAccessor.GetRowSpan(y);
+					Span<Float32> targetRow = targetAccessor.GetRowSpan(y);
 					for (int x = 0; x < sourceRow.Length; x++)
 					{
-						ref Rgba32 pixel = ref sourceRow[x];
-						if (pixel.R < targetRow[x].R)
+						ref Float32 pixel = ref sourceRow[x];
+						if (pixel.Value > 1f)
+							Console.WriteLine(pixel.Value);
+						if (Math.Abs(pixel.Value) < Math.Abs(targetRow[x].Value))
 						{
-							pixel = new Rgba32(targetRow[x].R, targetRow[x].R, targetRow[x].R);
+							pixel = new Float32(targetRow[x].Value);
 						}
 					}
 				}
 			});
 
 		}
+		using Image<Rgba32> rgba = baseRaster.CloneAs<Rgba32>();
 		using MemoryStream stream2 = new(16384);
-		baseRaster.Save(stream2, new PngEncoder());
+		rgba.Save(stream2, new PngEncoder());
+		//TODO: convert to rgba32
 		m_newBenthicImpactRaster = Convert.ToBase64String(stream2.ToArray());
 	}
 

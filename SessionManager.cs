@@ -49,7 +49,11 @@ public class SessionManager()
 
     public SessionManager(string[] args) : this()
     {
-        m_args = args;
+		// Load environment variables from .env file
+		Env.Load();
+		Env.Load(".env.local");
+
+		m_args = args;
         m_sessions = new Dictionary<string, SimulationSession>();
 		m_simulationDefinitions = new Dictionary<string, List<Version>>();
 		GetServerID(); //Just initialise .env.local file
@@ -61,25 +65,6 @@ public class SessionManager()
 		TaskExtensions.RegisterExceptionHandler<FatalException>(
             (exception) => throw exception);
         TaskExtensions.RegisterExceptionHandler<TriggerResetException>(_ => { Reset(); });
-
-
-
-		//Console.WriteLine("Executing test console command");
-		//Process cmd = new Process();
-		//cmd.StartInfo.FileName = "cmd.exe";
-		//cmd.StartInfo.RedirectStandardInput = true;
-		//cmd.StartInfo.RedirectStandardOutput = true;
-		//cmd.StartInfo.CreateNoWindow = true;
-		//cmd.StartInfo.UseShellExecute = false;
-
-		//cmd.Start();
-
-		///* execute "dir" */
-
-		//cmd.StandardInput.WriteLine("docker image");
-		//cmd.StandardInput.Flush();
-		//cmd.StandardInput.Close();
-		//Console.WriteLine(cmd.StandardOutput.ReadToEnd());
 
 		InitialiseMCP();
 	}
@@ -184,10 +169,6 @@ public class SessionManager()
     private void RunInternal(int? port, bool? httpsRedirection)
     {
         var builder = WebApplication.CreateBuilder(m_args);
-        
-        // Load environment variables from .env file
-        Env.Load();
-        Env.Load(".env.local");
 
         // Add services to the container.
         builder.Services.AddEndpointsApiExplorer();
@@ -211,7 +192,7 @@ public class SessionManager()
         }
         if (httpsRedirection == true)
         {
-            app.UseHttpsRedirection();
+           // app.UseHttpsRedirection();
         }
 
         app.MapPost(API_PING, () => Results.Ok(new { success = "1", message = "Pong" }))
@@ -403,13 +384,13 @@ public class SessionManager()
 
 	private string GetServerID()
     {
-		var serverId = Environment.GetEnvironmentVariable("SERVER_ID", EnvironmentVariableTarget.User);
+		var serverId = Environment.GetEnvironmentVariable("SERVER_ID");
 		if (string.IsNullOrEmpty(serverId))
 		{
 			Util.LogAppLevel("SERVER_ID environment variable is not set. Generating a new one.");
 			// Generate a new UUID, save it back to the .env file
 			serverId = Guid.NewGuid().ToString();
-			Environment.SetEnvironmentVariable("SERVER_ID", serverId, EnvironmentVariableTarget.User);
+			Environment.SetEnvironmentVariable("SERVER_ID", serverId);
 			File.AppendAllText(".env.local", $"SERVER_ID={serverId}{Environment.NewLine}");
 		}
 		Util.LogAppLevel($"Server ID: {serverId}");
