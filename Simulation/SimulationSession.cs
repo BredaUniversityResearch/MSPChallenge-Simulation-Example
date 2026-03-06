@@ -319,12 +319,17 @@ public class SimulationSession
 			}
 			if (m_newBenthicImpactRaster != null)
 			{
-				float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
-					{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
+				//float[,] bounds = new float[,] { { m_activeBenthicSims[0].m_resultsRaster.bounds[0], m_activeBenthicSims[0].m_resultsRaster.bounds[1] },
+				//	{ m_activeBenthicSims[0].m_resultsRaster.bounds[2], m_activeBenthicSims[0].m_resultsRaster.bounds[3] }};
+				float[,] bounds = new float[,] { 
+					  { BenthicSimAreaHandler.bound_xMin, 
+						BenthicSimAreaHandler.bound_yMin },
+					  { BenthicSimAreaHandler.bound_xMax, 
+						BenthicSimAreaHandler.bound_yMax }};
 				await m_mspClient.HttpPost(API_SET_RASTER,
 					new NameValueCollection { { "layer_name", m_benthicImpactMeta.layer_name }, { "image_data", m_newBenthicImpactRaster },
 						{ "month", m_currentMonth.ToString() }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
-				Console.WriteLine(m_newBenthicImpactRaster);
+				//Console.WriteLine(m_newBenthicImpactRaster);
 			}
 			if (m_kpis == null)
 			{
@@ -488,15 +493,45 @@ public class SimulationSession
 
 	void CombineImpactRasters()
 	{
+		using Image<Float32> baseRaster = new Image<Float32>(BenthicSimAreaHandler.fullWidth, BenthicSimAreaHandler.fullHeight);
+		
+		for (int i = 0; i < m_activeBenthicSims.Count; i++)
+		{
+			int index = m_activeBenthicSims[i].m_resultsRaster.data.IndexOf(',');
+			string base64 = m_activeBenthicSims[i].m_resultsRaster.data.Substring(index + 1);
+			//Console.WriteLine(base64);
+			using Image<Float32> addRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
+			baseRaster.ProcessPixelRows(addRaster, (sourceAccessor, targetAccessor) =>
+			{
+				for (int y = 0; y < m_activeBenthicSims[i].m_resultsRaster.height; y++)
+				{
+					Span<Float32> sourceRow = sourceAccessor.GetRowSpan(y+ m_activeBenthicSims[i].m_resultsRaster.startPixelY);
+					Span<Float32> targetRow = targetAccessor.GetRowSpan(y);
+					for (int x = 0; x < targetRow.Length; x++)
+					{
+						ref Float32 pixel = ref sourceRow[x + m_activeBenthicSims[i].m_resultsRaster.startPixelX];
+						pixel = new Float32(targetRow[x].Value + pixel.Value);
+					}
+				}
+			});
+
+		}
+		using Image<Rgba32> rgba = baseRaster.CloneAs<Rgba32>();
+		using MemoryStream stream2 = new(16384);
+		rgba.Save(stream2, new PngEncoder());
+		m_newBenthicImpactRaster = Convert.ToBase64String(stream2.ToArray());
+		//Console.WriteLine(m_newBenthicImpactRaster);
+	}
+
+	void CombineImpactRastersSameSize()
+	{
 		int index = m_activeBenthicSims[0].m_resultsRaster.data.IndexOf(',');
 		string base64 = m_activeBenthicSims[0].m_resultsRaster.data.Substring(index + 1);
 		using Image<Float32> baseRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
-		Console.WriteLine(base64);
 		for (int i = 1; i < m_activeBenthicSims.Count; i++)
 		{
 			index = m_activeBenthicSims[i].m_resultsRaster.data.IndexOf(',');
 			base64 = m_activeBenthicSims[i].m_resultsRaster.data.Substring(index + 1);
-			Console.WriteLine(base64);
 			using Image<Float32> addRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
 			baseRaster.ProcessPixelRows(addRaster, (sourceAccessor, targetAccessor) =>
 			{
@@ -507,12 +542,7 @@ public class SimulationSession
 					for (int x = 0; x < sourceRow.Length; x++)
 					{
 						ref Float32 pixel = ref sourceRow[x];
-						if (pixel.Value > 1f)
-							Console.WriteLine(pixel.Value);
-						if (Math.Abs(pixel.Value) < Math.Abs(targetRow[x].Value))
-						{
-							pixel = new Float32(targetRow[x].Value);
-						}
+						pixel = new Float32(targetRow[x].Value + pixel.Value);
 					}
 				}
 			});
@@ -521,7 +551,6 @@ public class SimulationSession
 		using Image<Rgba32> rgba = baseRaster.CloneAs<Rgba32>();
 		using MemoryStream stream2 = new(16384);
 		rgba.Save(stream2, new PngEncoder());
-		//TODO: convert to rgba32
 		m_newBenthicImpactRaster = Convert.ToBase64String(stream2.ToArray());
 	}
 

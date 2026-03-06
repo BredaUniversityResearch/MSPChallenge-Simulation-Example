@@ -6,6 +6,8 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
 using DotSpatial.Projections;
 using System;
+using System.Reflection.Metadata;
+using System.Data;
 
 namespace MSPChallenge_Simulation.Simulation;
 
@@ -13,6 +15,14 @@ public class BenthicSimAreaHandler
 {
 	public const string MSPCProjString = "EPSG:3035";
 	public const int MSPCProjEPSG = 3035;
+	public const float bound_xMin = 3771769.75f;
+	public const float bound_yMin = 3173152.75f;
+	public const float bound_xMax = 4110089.25f;
+	public const float bound_yMax = 3630772.75f;
+	//public const int fullWidth = 3118;
+	//public const int fullHeight = 5141;
+	public static int fullWidth = 2514;
+	public static int fullHeight = 4609;
 
 	public enum ExternalSimStatus { Unscheduled, AwaitingCreate, AwaitingResultsIdle, AwaitingResultsPolled, AwaitingResultsFetch, Completed, Failed }
 	public enum SimDetailLevel { Fast, Medium, Fine }
@@ -20,7 +30,7 @@ public class BenthicSimAreaHandler
 	string? m_jsonGeotiff;
 	string? m_simID;
 	ExternalSimStatus m_status = ExternalSimStatus.Unscheduled;
-	SimDetailLevel m_detail = SimDetailLevel.Fast;
+	SimDetailLevel m_detail = SimDetailLevel.Fine;
 	public RasterPixelRect m_rasterPixelRect;
 	public string? m_message;
 	public SimulationResults? m_resultsSummary;
@@ -34,6 +44,11 @@ public class BenthicSimAreaHandler
 	{
 		m_rasterPixelRect = a_rasterPixelRect;
 		m_pitIDs = new List<int>() { a_pitID};
+		if(m_detail == SimDetailLevel.Fast)
+		{
+			fullWidth = 292;
+			fullHeight = 488;
+		}
 	}
 
 	void ResetRequest()
@@ -231,9 +246,15 @@ public class BenthicSimAreaHandler
 		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultRasterCall.Content.OfType<TextContentBlock>().First().Text);
 		m_status = ExternalSimStatus.Completed;
 		m_resultsRaster.bounds = ReprojectBounds(m_resultsRaster.bounds, m_resultsRaster.crs);
+		Console.WriteLine($"Reprojected bounds: [[{m_resultsRaster.bounds[0]},{m_resultsRaster.bounds[1]}],[{m_resultsRaster.bounds[2]},{m_resultsRaster.bounds[3]}]], Width: {m_resultsRaster.width}, Height: {m_resultsRaster.height}, original CRS: {m_resultsRaster.crs}");
 		m_resultsRaster.crs = null;
-		//Console.WriteLine(m_resultsRaster.data);
-		//Console.WriteLine($"{m_resultsRaster.bounds[0]}, {m_resultsRaster.bounds[1]}, {m_resultsRaster.bounds[2]}, {m_resultsRaster.bounds[3]}");
+
+
+		float widthPerPixel = (bound_xMax - bound_xMin) / (float)fullWidth;
+		float heightPerPixel = (bound_yMax - bound_yMin) / (float)fullHeight;
+		m_resultsRaster.startPixelX = (int)((m_resultsRaster.bounds[0] - bound_xMin) / widthPerPixel);
+		m_resultsRaster.startPixelY = fullHeight - m_resultsRaster.height - (int)((m_resultsRaster.bounds[1] - bound_yMin) / heightPerPixel);
+
 		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
 		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
 		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");

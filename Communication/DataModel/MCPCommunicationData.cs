@@ -47,6 +47,10 @@
 		public int width; //raster pixel width
 		public int height; //raster pixel height
 		public string data; //base64 encoded GeoTIFF (data:image/tiff;base64,...)
+
+		//Added by sim afterwards
+		public int startPixelX;
+		public int startPixelY;
 	}
 
 	public class SimulationResultsSummary

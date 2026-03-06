@@ -4,11 +4,11 @@ using SixLabors.ImageSharp.PixelFormats;
 
 public struct Float32 : IPixel<Float32>
 {
-	const float scale = 500f;
-	const float max = 250f;
+	const float scale = 100f;
+	const float max = 50f;
 
 	// Single float channel
-	public float Value;
+	public float Value = 0f;
 
 	public Float32(float value)
 	{
@@ -32,13 +32,17 @@ public struct Float32 : IPixel<Float32>
 
 	public void FromVector4(Vector4 vector)
 	{
-		Value = (vector[0] - 0.5f) * scale; 
+		if (vector[0] < -9998f) //Values of -9999 represent empty pixels
+			Value = 0f;
+		else
+			Value = vector[0]; 
+		//Value = (vector[0] - 0.5f) * scale; 
 	}
 
 	public Vector4 ToVector4()
 	{
 		float scaled = Math.Clamp(Value / scale + 0.5f, 0f, 1f);
-		return new Vector4(scaled, 0f, 0f, 1f);
+		return new Vector4(scaled, scaled, scaled, 1f);
 	}
 
 	public void FromArgb32(Argb32 source)
