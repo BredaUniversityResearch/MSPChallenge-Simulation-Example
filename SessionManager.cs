@@ -327,6 +327,7 @@ public class SessionManager()
 		{
 			return Results.BadRequest(new { success = "0", message = "No active session for provided session token. Not valid for a new session." });
 		}
+		Console.WriteLine("State updated successfully\n" + JsonConvert.SerializeObject(a_request));
 		return Results.Ok(new { success = "1", message = "State updated successfully" });
 	}
 
