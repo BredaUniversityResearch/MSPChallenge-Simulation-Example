@@ -13,6 +13,8 @@ using ModelContextProtocol.Client;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System.Collections.Generic;
+using MSPChallenge_Simulation.Communication;
+using SixLabors.ImageSharp.ColorSpaces;
 
 const string API_GET_RASTER = "api/Layer/GetRaster";    //get raster for layer with "layer_name"
 const string API_GET_LAYER_LIST = "/api/Layer/List";    //get list of layers with tags matching "layer_tags"
@@ -49,6 +51,7 @@ Task InitialiseSession(SimulationSession a_session)
 	{
 		await Task.WhenAll(t1, t2, t3, t4, t5);
 		await CalculateDTSRaster(a_session);
+		await SetBenthicImpactBase(a_session);
 	});
 }
 
@@ -129,6 +132,24 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 	Util.LogSessionLevel($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
 }
 
+Task SetBenthicImpactBase(SimulationSession a_session)
+{
+	return Task.Run(async () =>
+	{
+		using Image<Rgba32> baseRaster = new Image<Rgba32>(BenthicSimAreaHandler.fullWidth, BenthicSimAreaHandler.fullHeight, new Rgba32(0.5f, 0.5f, 0.5f, 1f));
+		using MemoryStream stream2 = new(16384);
+		baseRaster.Save(stream2, new PngEncoder());
+
+		float[,] bounds = new float[,] {
+					  { BenthicSimAreaHandler.bound_xMin,
+						BenthicSimAreaHandler.bound_yMin },
+					  { BenthicSimAreaHandler.bound_xMax,
+						BenthicSimAreaHandler.bound_yMax }};
+		await a_session.MSPClient.HttpPost(SimulationSession.API_SET_RASTER,
+			new NameValueCollection { { "layer_name", a_session.m_benthicImpactMeta.layer_name }, { "image_data", Convert.ToBase64String(stream2.ToArray()) },
+						{ "month", "-1" }, {"raster_bounds", JsonConvert.SerializeObject(bounds)} });
+	});
+}
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
 Task SessionSimulationStateEntered(SimulationSession session, McpClient a_mcpClient)
@@ -410,10 +431,6 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 				//Update bathymetry raster with avg extraction depth on pixel multiplied by coverage
 				float oldDepth = GetBathymeteryDepthForRaster(newBathRaster[x, newBathRaster.Height - 1 - y].R, a_session);
 				float newDepth = oldDepth + (float)(avgExtractionDepth * coverageFraction);
-				//if (MathF.Abs(newDepth - oldDepth) > 0.01f)
-				//{
-				//	Util.LogPitLevel($"Extracted {newDepth - oldDepth}m at [{x},{y}]");
-				//}
 				byte value = GetBathymeteryValueForDepth(newDepth, a_session);
 				newBathRaster[x, newBathRaster.Height-1-y] = new Rgba32(value, value, value);
 			}
@@ -429,35 +446,6 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	{
 		sim.DetermineDeltaRaster(originalBathRaster, newBathRaster, a_bathymetryRaster.displayed_bounds, bathRealWidthPerPixel, bathRealHeightPerPixel, a_session);
 	}
-
-	//Old setup
-	//List<RasterPixelRect> groupedRects = GetGroupedPitRects(bathRasterPitRects);
-	//a_session.m_activeBenthicSims = new List<BenthicSimAreaHandler>();
-	//foreach(RasterPixelRect rect in groupedRects)
-	//{
-	//	//Iterate through bounds groups, determine delta raster and area for the group, add external sim handler to session
-	//	GeoTIFF deltaRaster = new GeoTIFF()
-	//	{
-	//		data = new float[rect.m_xMax - rect.m_xMin, rect.m_yMax - rect.m_yMin],
-	//		crs = "EPSG:3035",
-	//		extent = new float[] {
-	//			(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMin * bathRealWidthPerPixel),
-	//			(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMin * bathRealHeightPerPixel),
-	//			(float)(a_bathymetryRaster.displayed_bounds[0][0] + rect.m_xMax * bathRealWidthPerPixel),
-	//			(float)(a_bathymetryRaster.displayed_bounds[0][1] + rect.m_yMax * bathRealHeightPerPixel)
-	//		}
-	//	};
-	//	for (int x = 0; x < rect.m_xMax - rect.m_xMin; x++)
-	//	{
-	//		for (int y = 0; y < rect.m_yMax - rect.m_yMin; y++)
-	//		{
-	//			deltaRaster.data[x, y] = 
-	//				GetBathymeteryDepthForRaster(originalBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session) 
-	//				- GetBathymeteryDepthForRaster(newBathRaster[x + rect.m_xMin, newBathRaster.Height - 1 - (rect.m_yMin + y)].R, a_session);
-	//		}
-	//	}
-	//	a_session.m_activeBenthicSims.Add(new BenthicSimHandler(a_mcpClient, JsonConvert.SerializeObject(deltaRaster), rect));
-	//}
 
 	//Write new depth raster
 	using MemoryStream stream = new(16384);

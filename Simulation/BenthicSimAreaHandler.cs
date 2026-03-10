@@ -19,8 +19,6 @@ public class BenthicSimAreaHandler
 	public const float bound_yMin = 3173152.75f;
 	public const float bound_xMax = 4110089.25f;
 	public const float bound_yMax = 3630772.75f;
-	//public const int fullWidth = 3118;
-	//public const int fullHeight = 5141;
 	public static int fullWidth = 2514;
 	public static int fullHeight = 4609;
 
@@ -244,17 +242,18 @@ public class BenthicSimAreaHandler
 			return;
 		}
 		m_resultsRaster = JsonConvert.DeserializeObject<SimulationRasterResults>(simResultRasterCall.Content.OfType<TextContentBlock>().First().Text);
-		m_status = ExternalSimStatus.Completed;
 		m_resultsRaster.bounds = ReprojectBounds(m_resultsRaster.bounds, m_resultsRaster.crs);
 		Console.WriteLine($"Reprojected bounds: [[{m_resultsRaster.bounds[0]},{m_resultsRaster.bounds[1]}],[{m_resultsRaster.bounds[2]},{m_resultsRaster.bounds[3]}]], Width: {m_resultsRaster.width}, Height: {m_resultsRaster.height}, original CRS: {m_resultsRaster.crs}");
 		m_resultsRaster.crs = null;
-
 
 		float widthPerPixel = (bound_xMax - bound_xMin) / (float)fullWidth;
 		float heightPerPixel = (bound_yMax - bound_yMin) / (float)fullHeight;
 		m_resultsRaster.startPixelX = (int)((m_resultsRaster.bounds[0] - bound_xMin) / widthPerPixel);
 		m_resultsRaster.startPixelY = fullHeight - m_resultsRaster.height - (int)((m_resultsRaster.bounds[1] - bound_yMin) / heightPerPixel);
 
+		m_status = ExternalSimStatus.Completed;
+
+		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] set startpizxelY to {m_resultsRaster.startPixelY}");
 		Util.LogSimLevel2($"Benthic sim with ID [{m_simID}] results fetched. Pit IDs in group: {string.Join(", ", m_pitIDs)}");
 		Util.LogSimLevel2($"Net change: {m_resultsSummary.summary.impact.sum_net_change_individuals}");
 		Util.LogSimLevel2($"Mean percent change: {m_resultsSummary.summary.impact.mean_percent_change}");

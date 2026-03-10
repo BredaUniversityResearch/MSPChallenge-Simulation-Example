@@ -18,14 +18,14 @@ namespace MSPChallenge_Simulation.Simulation;
 
 public class SimulationSession
 {
-	const string API_GET_WATCHDOG_TOKEN = "/api/Simulation/GetWatchdogTokenForServer";
-	const string API_GET_TOKEN = "/api/User/RequestToken";
-	const string API_SET_KPI = "/api/kpi/BatchPost";									//Sets kpis in "kpiValues" list
-	const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert";                    //Sets simulation definitions used for session
-	const string API_SET_RASTER = "/api/layer/UpdateRaster";							//set raster for layer with "layer_name"
-	const int DefaultMonth = -1; // setup month
-	const int PollTokenFrequencySec = 60;
-	const int RefreshApiAccessTokenFrequencySec = 900;
+	public const string API_GET_WATCHDOG_TOKEN = "/api/Simulation/GetWatchdogTokenForServer";
+	public const string API_GET_TOKEN = "/api/User/RequestToken";
+	public const string API_SET_KPI = "/api/kpi/BatchPost";									//Sets kpis in "kpiValues" list
+	public const string API_SET_SIM_DEFINITIONS = "/api/Simulation/Upsert";                    //Sets simulation definitions used for session
+	public const string API_SET_RASTER = "/api/layer/UpdateRaster";							//set raster for layer with "layer_name"
+	public const int DefaultMonth = -1; // setup month
+	public const int PollTokenFrequencySec = 60;
+	public const int RefreshApiAccessTokenFrequencySec = 900;
 	enum SimulationState { Internal, External, Aggregation };
 
 	//Session meta
@@ -501,6 +501,8 @@ public class SimulationSession
 			string base64 = m_activeBenthicSims[i].m_resultsRaster.data.Substring(index + 1);
 			//Console.WriteLine(base64);
 			using Image<Float32> addRaster = Image.Load<Float32>(Convert.FromBase64String(base64));
+			Util.LogSimLevel2($"Benthic sim with ID [{m_activeBenthicSims[i].ID}] used startpizxelY of {m_activeBenthicSims[i].m_resultsRaster.startPixelY}");
+
 			baseRaster.ProcessPixelRows(addRaster, (sourceAccessor, targetAccessor) =>
 			{
 				for (int y = 0; y < m_activeBenthicSims[i].m_resultsRaster.height; y++)
