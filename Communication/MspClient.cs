@@ -70,6 +70,9 @@ public class MspClient
             var wrapper = wrapperTask.Result;
             if (wrapper.success) return;
             var exception = new Exception(string.IsNullOrEmpty(wrapper.message) ? "Unknown error" : wrapper.message);
+            exception.Data["uri"] = uri;
+            exception.Data["postValues"] = postValues;
+            exception.Data["headers"] = headers;
             m_defaultErrorHandler?.Invoke(exception);
             throw exception;
         });
@@ -92,6 +95,9 @@ public class MspClient
                 if (!wrapper.success)
                     throw new Exception(string.IsNullOrEmpty(wrapper.message) ? "Unknown error" : wrapper.message);
             } catch (Exception e) {
+                e.Data["uri"] = uri;
+                e.Data["postValues"] = postValues;
+                e.Data["headers"] = headers;
                 m_defaultErrorHandler?.Invoke(e);
                 throw;
             }
@@ -131,6 +137,9 @@ public class MspClient
         {
             if (postTask.IsFaulted)
             {
+                postTask.Exception.Data["uri"] = uri;
+                postTask.Exception.Data["postValues"] = postValues;
+                postTask.Exception.Data["headers"] = headers;
                 m_defaultErrorHandler?.Invoke(postTask.Exception);
                 throw postTask.Exception;
             }            
@@ -138,13 +147,20 @@ public class MspClient
             if (!response.IsSuccessStatusCode)
             {
                 var errorMessage = $"HTTP request failed with status code {response.StatusCode}";
-                m_defaultErrorHandler?.Invoke(new HttpRequestException(errorMessage, null, response.StatusCode));
+                var ex = new HttpRequestException(errorMessage, null, response.StatusCode);
+                ex.Data["uri"] = uri;
+                ex.Data["postValues"] = postValues;
+                ex.Data["headers"] = headers;
+                m_defaultErrorHandler?.Invoke(ex);
                 throw new HttpRequestException(errorMessage, null, response.StatusCode);
             }            
             return response.Content.ReadAsStringAsync().ContinueWith(readTask =>
             {
                 if (readTask.IsFaulted)
                 {
+                    readTask.Exception.Data["uri"] = uri;
+                    readTask.Exception.Data["postValues"] = postValues;
+                    readTask.Exception.Data["headers"] = headers;
                     m_defaultErrorHandler?.Invoke(readTask.Exception);
                     throw readTask.Exception;;
                 }
@@ -160,6 +176,9 @@ public class MspClient
                 }
                 catch (Exception ex)
                 {
+                    ex.Data["uri"] = uri;
+                    ex.Data["postValues"] = postValues;
+                    ex.Data["headers"] = headers;
                     m_defaultErrorHandler?.Invoke(ex);
                     throw;
                 }

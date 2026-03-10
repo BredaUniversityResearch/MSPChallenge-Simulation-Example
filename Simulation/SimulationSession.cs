@@ -100,7 +100,19 @@ public class SimulationSession
 		m_programStateMachine.OnReportStateEnteredEvent += OnReportStateEntered;
 
 		m_mspClient = new MspClient(a_serverId, a_gameSessionApi, a_apiAccessToken.token, a_apiAccessRenewToken.token);
-		m_mspClient.SetDefaultErrorHandler(exception => { Console.WriteLine("Error: " + exception.Message); });
+		m_mspClient.SetDefaultErrorHandler(exception =>
+		{
+		    var logObject = new
+		    {
+		        error = exception.Message,
+		        data = exception.Data.Cast<System.Collections.DictionaryEntry>()
+		            .ToDictionary(
+		                entry => entry.Key?.ToString() ?? "null",
+		                entry => entry.Value
+		            )
+		    };
+		    Console.WriteLine(JsonConvert.SerializeObject(logObject));
+		});
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
 		m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
