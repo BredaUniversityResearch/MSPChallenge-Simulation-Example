@@ -192,7 +192,7 @@ public class SessionManager()
         }
         if (httpsRedirection == true)
         {
-           // app.UseHttpsRedirection();
+            app.UseHttpsRedirection();
         }
 
         app.MapPost(API_PING, () => Results.Ok(new { success = "1", message = "Pong" }))
