@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         bash \
         nano \
 		docker-cli \
+		ca-certificates \
 	;	
 
 # Set the working directory in the container
