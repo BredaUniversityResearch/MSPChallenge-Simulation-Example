@@ -126,9 +126,28 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 			{
 				minDistance = Math.Min(minDistance, Util.PointDistanceFromLineString(originX + x * widthPerPixel, originY + y * heightPerPixel, line.geometry));
 			}
-			a_session.m_distanceToShoreRaster[x, sdRaster.Height-1-y] = minDistance;
+			a_session.m_distanceToShoreRaster[x, /*sdRaster.Height-1-*/y] = minDistance;
 		}
 	}
+
+	//Generate debug image
+	using Image<Rgba32> rgba = new Image<Rgba32>(sdRaster.Width, sdRaster.Height);
+	rgba.ProcessPixelRows(accessor =>
+	{
+		for (int y = 0; y < accessor.Height; y++)
+		{
+			Span<Rgba32> pixelRow = accessor.GetRowSpan(sdRaster.Height - 1 - y);
+
+			for (int x = 0; x < pixelRow.Length; x++)
+			{
+				ref Rgba32 pixel = ref pixelRow[x];
+				float v = Math.Clamp(a_session.m_distanceToShoreRaster[x, y] / 50000f, 0f, 1f);
+				pixel = new Rgba32(v, v, v, 1f);
+			}
+		}
+	});
+	rgba.SaveAsPng(Path.Combine(AppContext.BaseDirectory, "DTSRaster.png"));
+
 	Util.LogSessionLevel($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
 }
 
@@ -366,7 +385,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 				double oldDepth = GetSandDepthForRaster(sdRaster[x, sdRaster.Height-1-y].R, a_session);
 				byte value = GetSandValueForDepth(oldDepth - volumePerPixel[x - sdStartX, y - sdStartY] / sdAreaPerPixel, a_session);
 				sdRaster[x, sdRaster.Height-1 - y] = new Rgba32(value, 0, 0);
-				averageDTS += volumePerPixel[x-sdStartX, y-sdStartY] / totalPitVolume * a_session.m_distanceToShoreRaster[x, y];
+				averageDTS += volumePerPixel[x-sdStartX, y-sdStartY] / totalPitVolume * (double)a_session.m_distanceToShoreRaster[x, y];
 			}
 		}
 
@@ -470,7 +489,7 @@ void RunSimulationMonth(SimulationSession a_session, McpClient a_mcpClient, Rast
 	double monthlyAVGDTS = 0d;
 	if(monthlyExtractedVolume > 0d)
 	{
-		monthlyAVGDTS = monthlyTotalDTS / monthlyExtractedVolume;
+		monthlyAVGDTS = monthlyTotalDTS / monthlyExtractedVolume * 0.9d; //Error correction
 	}
 
 	//Set extraction KPIs

@@ -91,14 +91,54 @@ namespace MSPChallenge_Simulation.Simulation
 			return (projection - point).LengthSquared();
 		}
 
+		public static double GetSquaredDistanceToLine2(float px, float py, float lx1, float ly1, float lx2, float ly2)
+		{
+			double A = px - lx1;
+			double B = py - ly1;
+			double C = lx2 - lx1;
+			double D = ly2 - ly1;
+
+			double dot = A * C + B * D;
+			double len_sq = C * C + D * D;
+			double param = -1f;
+			if (len_sq != 0f) //in case of 0 length line
+				param = dot / len_sq;
+
+			double xx, yy;
+
+			if (param < 0f)
+			{
+				xx = lx1;
+				yy = ly1;
+			}
+			else if (param > 1f)
+			{
+				xx = lx2;
+				yy = ly2;
+			}
+			else
+			{
+				xx = lx1 + param * C;
+				yy = ly1 + param * D;
+			}
+
+			double dx = px - xx;
+			double dy = py - yy;
+			return dx * dx + dy * dy; //Still squared
+		}
+
 		public static float PointDistanceFromLineString(float a_pointX, float a_pointY, float[][] a_lineString)
 		{
-			float result = float.MaxValue;
+			double result = double.MaxValue;
+			//for (int i = 0; i < a_lineString.Length - 1; ++i)
+			//	result = Math.Min(result, GetSquaredDistanceToLine(
+			//		new Vector2(a_pointX, a_pointY),
+			//		new Vector2(a_lineString[i][0], a_lineString[i][1]),
+			//		new Vector2(a_lineString[i + 1][0], a_lineString[i + 1][1])));
+
 			for (int i = 0; i < a_lineString.Length - 1; ++i)
-				result = Math.Min(result, GetSquaredDistanceToLine(
-					new Vector2(a_pointX, a_pointY),
-					new Vector2(a_lineString[i][0], a_lineString[i][1]),
-					new Vector2(a_lineString[i + 1][0], a_lineString[i + 1][1])));
+				result = Math.Min(result, GetSquaredDistanceToLine2(a_pointX, a_pointY, a_lineString[i][0], a_lineString[i][1], a_lineString[i + 1][0], a_lineString[i + 1][1]));
+
 			return (float)Math.Sqrt(result);
 		}
 
