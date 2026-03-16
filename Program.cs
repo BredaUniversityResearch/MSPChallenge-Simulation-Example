@@ -131,22 +131,22 @@ void CalculateDTSRasterInternal(SimulationSession a_session, List<SubEntityObjec
 	}
 
 	//Generate debug image
-	using Image<Rgba32> rgba = new Image<Rgba32>(sdRaster.Width, sdRaster.Height);
-	rgba.ProcessPixelRows(accessor =>
-	{
-		for (int y = 0; y < accessor.Height; y++)
-		{
-			Span<Rgba32> pixelRow = accessor.GetRowSpan(sdRaster.Height - 1 - y);
+	//using Image<Rgba32> rgba = new Image<Rgba32>(sdRaster.Width, sdRaster.Height);
+	//rgba.ProcessPixelRows(accessor =>
+	//{
+	//	for (int y = 0; y < accessor.Height; y++)
+	//	{
+	//		Span<Rgba32> pixelRow = accessor.GetRowSpan(sdRaster.Height - 1 - y);
 
-			for (int x = 0; x < pixelRow.Length; x++)
-			{
-				ref Rgba32 pixel = ref pixelRow[x];
-				float v = Math.Clamp(a_session.m_distanceToShoreRaster[x, y] / 50000f, 0f, 1f);
-				pixel = new Rgba32(v, v, v, 1f);
-			}
-		}
-	});
-	rgba.SaveAsPng(Path.Combine(AppContext.BaseDirectory, "DTSRaster.png"));
+	//		for (int x = 0; x < pixelRow.Length; x++)
+	//		{
+	//			ref Rgba32 pixel = ref pixelRow[x];
+	//			float v = Math.Clamp(a_session.m_distanceToShoreRaster[x, y] / 50000f, 0f, 1f);
+	//			pixel = new Rgba32(v, v, v, 1f);
+	//		}
+	//	}
+	//});
+	//rgba.SaveAsPng(Path.Combine(AppContext.BaseDirectory, "DTSRaster.png"));
 
 	Util.LogSessionLevel($"DTS raster calculated at resolution: {sdRaster.Width}x{sdRaster.Height}");
 }
