@@ -139,16 +139,23 @@ public class SimulationSession
 		m_mspClient.apiAccessToken = a_apiAccessToken.token;
 		m_mspClient.apiRefreshToken = a_apiAccessRenewToken.token;
 		m_refreshApiAccessTokenTimeLeftSec = RefreshApiAccessTokenFrequencySec;
-		m_targetMonth = a_targetMonth;
+		SetTargetMonth(a_targetMonth);
 		m_targetGameState = a_newGameState;
-		Util.LogSessionLevel($"State of session {m_gameSessionToken} changed. Setting target month to {m_targetMonth} and state to {m_targetGameState}");
+		Util.LogSessionLevel($"State of session {m_gameSessionToken} changed to {m_targetGameState}");
 	}
 
 	public void SetTargetMonth(int a_targetMonth)
 	{
-		m_targetMonth = a_targetMonth;
-		Util.LogSessionLevel($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
-	}
+		if (a_targetMonth > m_currentMonth)
+		{
+			m_targetMonth = a_targetMonth;
+			Util.LogSessionLevel($"Target month of session {m_gameSessionToken} changed to {m_targetMonth}");
+		}
+        else
+        {
+			Util.LogSessionLevel($"Set month instruction ignored for session {m_gameSessionToken} that is lower than or equal to the current month of {m_targetMonth}.");          
+        }
+    }
 
 	public void TickSession(double a_deltaTimeSec, McpClient a_MCPClient)
 	{
