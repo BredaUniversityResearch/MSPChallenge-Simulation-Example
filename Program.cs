@@ -1,9 +1,11 @@
 using System.Collections.Specialized;
+using Microsoft.AspNetCore.Http;
 using MSPChallenge_Simulation;
 using MSPChallenge_Simulation.Api;
 using MSPChallenge_Simulation.Communication.DataModel;
 using MSPChallenge_Simulation.Extensions;
 using MSPChallenge_Simulation.Simulation;
+using MSPChallenge_Simulation.StateMachine;
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 using SunCalcNet;
@@ -11,13 +13,12 @@ using SunCalcNet.Model;
 
 // note that this program is designed to only handle one game session at a time
 //   any new game session will be ignored until the current game session is finished
-var program = new ProgramManager(args);
-var kpis = new List<KPI>();
+var program = new SessionManager(args);
 
-program.OnSimulationDefinitionsEvent += OnSimulationDefinitionsEvent;
-program.OnQuestionAcceptSetupEvent += OnQuestionAcceptSetupEvent;
-program.OnSetupEvent += Setup;
-program.OnReportStateEnteredEvent += () => Task.FromResult(kpis);
+program.AddSimulationDefinition(SessionManager.SIM_NAME, new Version("1.0.0"));
+program.OnQuestionAcceptSessionEvent += OnQuestionAcceptSetupEvent;
+program.OnSessionInitialiseEvent += InitialiseSession;
+program.OnSimulationStateEnteredEvent += SessionSimulationStateEntered;
 program.Run();
 return;
 
@@ -25,7 +26,7 @@ List<SimulationDefinition> OnSimulationDefinitionsEvent(GameSessionInfo gameSess
 {
     // here you can decide based on the game session info data what simulations you want to run
     // e.g. a watchdog could have multiple simulations, but you only want to run some of them
-    return [new SimulationDefinition("SunHours", "1.0.0")];
+    return [new SimulationDefinition(SessionManager.SIM_NAME, "1.0.0")];
 }
 
 bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
@@ -37,13 +38,13 @@ bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 
 // Once connected to the server, start setup.
 //   This will register the OnSimulationStateEnteredEvent event with the necessary data - eventually, and if found.
-Task Setup()
+Task InitialiseSession(SimulationSession a_session)
 {
     var values = new NameValueCollection
     {
         { "layer_tags", "EEZ,Polygon" }
     };
-    return program.GetMspClient().HttpPost<List<LayerMeta>>(
+    return a_session.MSPClient.HttpPost<List<LayerMeta>>(
         "/api/Layer/List", values
     ).ContinueWithOnSuccess(layerListTask =>
     {
@@ -53,92 +54,77 @@ Task Setup()
         var layer = layerListTask.Result[0];
         Console.WriteLine(
             $"Found layer with ID={layer.layer_id}, Name={layer.layer_name}, GeoType={layer.layer_geotype}.");
-        return (layer, program.GetMspClient().HttpPost<LayerMeta>(
+        return (layer, a_session.MSPClient.HttpPost<LayerMeta>(
             "/api/Layer/Meta",
             new NameValueCollection
             {
                 { "layer_id", layer.layer_id.ToString() }
             }));
-    }).ContinueWithOnSuccess(dataset =>
+    }).ContinueWithOnSuccess(request =>
     {
-        var (layer, layerMetaTask) = dataset.Result;
-        var layerWithMeta = layerMetaTask.Result;
-        if (layerWithMeta.layer_id == 0)
+        var (layer, layerMetaTask) = request.Result;
+		a_session.m_eezLayerMeta = layerMetaTask.Result;
+        if (a_session.m_eezLayerMeta.layer_id == 0)
         {
             throw new Exception($"Could not find layer data for layer id {layer.layer_id}.");
         }
         Console.WriteLine(
             $"Retrieved additional data for Layer with id {layer.layer_id} having {layer.layer_type.Count} layer types.");
-        return (layerWithMeta, program.GetMspClient().HttpPost<List<SubEntityObject>>(
+        return a_session.MSPClient.HttpPost<List<SubEntityObject>>(
             "/api/Layer/Get",
             new NameValueCollection
             {
                 { "layer_id", layer.layer_id.ToString() }
-            }));
-    }).ContinueWithOnSuccess(dataset =>
+            });
+    }).ContinueWithOnSuccess(geometry =>
     {
-        var (layer, layerGetTask) = dataset.Result;
-        var layerObjects = layerGetTask.Result;
-        if (layerObjects.Count == 0)
+		a_session.m_eezGeometry = geometry.Result.Result;
+        if (a_session.m_eezGeometry == null || a_session.m_eezGeometry.Count == 0)
         {
-            throw new Exception($"Could not find any layer geometry objects for layer with id {layer.layer_id}");
+            throw new Exception($"Could not find any layer geometry objects for layer with id {a_session.m_eezLayerMeta.layer_id}");
         }
 
         Console.WriteLine(
-            $"Retrieved geometry for layer with id {layer.layer_id} having {layerObjects.Count} layer objects.");
-        foreach (var layerObject in layerObjects)
+            $"Retrieved geometry for layer with id {a_session.m_eezLayerMeta.layer_id} having {a_session.m_eezGeometry.Count} layer objects.");
+        foreach (var layerObject in a_session.m_eezGeometry)
         {
             Console.WriteLine($"Layer object with ID={layerObject.id}, Type={layerObject.type}.");
         }
-
-        // notify that setup is finished
-        program.GetMspClient().HttpPost(
-            "/api/Simulation/NotifyMonthSimulationFinished",
-            new NameValueCollection
-            {
-                { "simulation_name", "SunHours" },
-                { "month", "-1" }
-            }
-        );
-
-        program.OnSimulationStateEnteredEvent += (month) =>
-            OnSimulationStateEnteredEvent(month, layer, layerObjects);
     });
 }
 
 // Once the simulation state - the next month - is entered, this event will be triggered.
-Task OnSimulationStateEnteredEvent(
-    int month,
-    LayerMeta eezLayer,
-    List<SubEntityObject> eezLayerObjects
-) {
-    return program.GetMspClient().HttpPost<YearMonthObject>(
+Task SessionSimulationStateEntered(SimulationSession a_session)
+{
+	Util.LogSimLevel0($"Starting internal simulation for month {a_session.CurrentMonth}.");
+	return a_session.MSPClient.HttpPost<YearMonthObject>(
     "/api/Game/GetActualDateForSimulatedMonth",
         new NameValueCollection
         {
-            { "simulated_month", month.ToString() }
+            { "simulated_month", a_session.CurrentMonth.ToString() }
         }
     ).ContinueWithOnSuccess(task => {
         var yearMonthObject = task.Result;
         if (yearMonthObject.year == 0)
         {
-            throw new Exception($"Could not find actual date for simulated month {month}.");
+            throw new Exception($"Could not find actual date for simulated month {a_session.CurrentMonth}.");
         }
-        CalculateKpis(month, yearMonthObject, eezLayer, eezLayerObjects);
+        CalculateKpis(a_session.CurrentMonth, yearMonthObject, a_session);
     });
 }
 
 void CalculateKpis(
     int simulatedMonthIdentifier,
     YearMonthObject yearMonthObject,
-    LayerMeta eezLayer,
-    List<SubEntityObject> eezLayerObjects
+	SimulationSession a_session
 ) {
-    kpis.Clear();
-    foreach (var layerType in eezLayer.layer_type)
+	Util.LogSimLevel0($"Calculating KPIs for month {a_session.CurrentMonth}.");
+    a_session.m_kpis = new List<KPI>();
+
+	foreach (var layerType in a_session.m_eezLayerMeta.layer_type)
     {
         // find the eez layer object that has property type being equal to layerType.key
-        var eezLayerObject = eezLayerObjects.Find(obj => obj.type == layerType.Key.ToString());
+        var eezLayerObject = a_session.m_eezGeometry.Find(obj => obj.type == layerType.Key.ToString());
         if (eezLayerObject == null)
         {
             Console.WriteLine($"Could not find layer object with type {layerType.Key}.");
@@ -148,7 +134,7 @@ void CalculateKpis(
         var key = 0;
         foreach (var coordinate in eezLayerObject.geometry)
         {
-            var daysInMonth = DateTime.DaysInMonth(yearMonthObject.year, yearMonthObject.month_of_year);
+            var daysInMonth = DateTime.DaysInMonth(yearMonthObject.year, yearMonthObject.month_of_year+1); //Uses 1-indexed months...
             for (var dayNumber = 1; dayNumber < daysInMonth; ++dayNumber)
             {
                 var latLong = ConvertToLatLong(Array.ConvertAll(
@@ -158,8 +144,8 @@ void CalculateKpis(
                 var sunPhases = SunCalc.GetSunPhases(
                     new DateTime(
                         yearMonthObject.year,
-                        yearMonthObject.month_of_year,
-                        dayNumber
+                        yearMonthObject.month_of_year+1, //Uses 1-indexed months...
+						dayNumber
                     ),
                     latLong[0],
                 latLong[1]
@@ -183,9 +169,10 @@ void CalculateKpis(
             country = -1 // for now, the server only supports showing non-country specific external KPIs
             //country = layerType.Value.value // eez layer type value = country id
         };
-        Console.WriteLine($"KPI: {kpi.name}, Value: {kpi.value} {kpi.unit}");
-        kpis.Add(kpi);
-    }
+		a_session.m_kpis.Add(kpi);
+		Util.LogSimLevel1($"KPI: {kpi.name}, Value: {kpi.value} {kpi.unit}");
+	}
+	a_session.FireStateMachineTrigger(Trigger.FinishedSimulation);
 }
 
 double[] ConvertToLatLong(double[] coordinate)

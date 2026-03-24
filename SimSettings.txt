@@ -1,0 +1,35 @@
+{
+ "simulation_type": "EXTERNAL",
+ "kpis": [
+   {
+     "categoryName": "SunHours",
+     "unit": "hours",
+     "valueDefinitions": [
+       {
+         "valueName": "SunHours Green"
+       },
+       {
+         "valueName": "SunHours Red"
+       },
+       {
+         "valueName": "SunHours Pink"
+       },
+       {
+         "valueName": "SunHours Blue"
+       },
+       {
+         "valueName": "SunHours Orange"
+       },
+       {
+         "valueName": "SunHours Navy"
+       },
+       {
+         "valueName": "SunHours Yellow"
+       },
+       {
+         "valueName": "SunHours Purple"
+       }
+     ]
+   }
+ ]
+}
