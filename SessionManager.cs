@@ -231,6 +231,7 @@ public class SessionManager()
 		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
 
 		EGameState newGameState;
+		// Request data validation
 		try
 		{
 			if (apiAccessToken == null || apiAccessRenewToken == null)
@@ -239,18 +240,31 @@ public class SessionManager()
 				throw new Exception("Invalid game state: " + a_request.game_state);
 			if (a_request.game_session_info == null)
 				throw new Exception("Missing setup game session info");
+			if (m_sessions.ContainsKey(a_request.game_session_token))
+				throw new Exception("A session with this game_session_token already exists");
+		}
+		catch (Exception e)
+		{
+			Util.LogAppLevel("Error, bad update state request: " + e.Message);
+			return Results.BadRequest(new { success = "0", message = e.Message });
+		}
+
+		// Request allowed?
+		try
+		{
 			if (!IsSessionConnectionAccepted(a_request.game_session_info))
 				throw new Exception("Session is not compatible with the available simulations");
-			if(m_sessions.ContainsKey(a_request.game_session_token))
-				throw new Exception("A session with this game_session_token already exists");
 			CheckRequiredSimulations(requiredSimulations);
 		}
 		catch (Exception e)
 		{
-			Util.LogAppLevel("Error in update state request: " + e.Message);
-			return Results.BadRequest(new { success = "0", message = "Bad request: " + e.Message });
-		}
-
+			Util.LogAppLevel("Error, update state request not allowed: " + e.Message);
+			return Results.Json(
+				new { success = "0", message = e.Message },
+				statusCode: StatusCodes.Status405MethodNotAllowed
+			);
+		}		
+		
 		SimulationSession session = new SimulationSession(
 			a_request.game_session_token, GetServerID(),
 			a_request.game_session_api, apiAccessToken, apiAccessRenewToken, newGameState, a_request.month, a_request.game_session_info,
@@ -282,7 +296,11 @@ public class SessionManager()
 		}
 		else
 		{
-			return Results.BadRequest(new { success = "0", message = "No active session for provided session token." });
+			// Request not allowed: No active session for provided session token
+			return Results.Json(
+				new { success = "0", message = "No active session for provided session token" },
+				statusCode: StatusCodes.Status405MethodNotAllowed
+			);
 		}
 		return Results.Ok(new { success = "1", message = "Month set successfully" });
 	}
@@ -294,6 +312,7 @@ public class SessionManager()
 		var requiredSimulations = JsonConvert.DeserializeObject<Dictionary<string, string>>(a_request.required_simulations);
 
 		EGameState newGameState;
+		// Request data validation
 		try
 		{
 			if (apiAccessToken == null || apiAccessRenewToken == null)
@@ -325,7 +344,11 @@ public class SessionManager()
 		}
 		else
 		{
-			return Results.BadRequest(new { success = "0", message = "No active session for provided session token. Not valid for a new session." });
+			// Request not allowed: No active session for provided session token. Not valid for a new session.
+			return Results.Json(
+				new { success = "0", message = "No active session for provided session token. Not valid for a new session." },
+				statusCode: StatusCodes.Status405MethodNotAllowed
+			);
 		}
 		Console.WriteLine("State updated successfully\n" + JsonConvert.SerializeObject(a_request));
 		return Results.Ok(new { success = "1", message = "State updated successfully" });
