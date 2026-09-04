@@ -139,7 +139,7 @@ public class MspClient
             {
                 postTask.Exception.Data["uri"] = uri;
                 postTask.Exception.Data["postValues"] = postValues;
-                postTask.Exception.Data["headers"] = headers;
+                postTask.Exception.Data["headers"] = request.Headers;
                 m_defaultErrorHandler?.Invoke(postTask.Exception);
                 throw postTask.Exception;
             }            
@@ -150,7 +150,7 @@ public class MspClient
                 var ex = new HttpRequestException(errorMessage, null, response.StatusCode);
                 ex.Data["uri"] = uri;
                 ex.Data["postValues"] = postValues;
-                ex.Data["headers"] = headers;
+                ex.Data["headers"] = request.Headers;
                 m_defaultErrorHandler?.Invoke(ex);
                 throw new HttpRequestException(errorMessage, null, response.StatusCode);
             }            
@@ -160,7 +160,7 @@ public class MspClient
                 {
                     readTask.Exception.Data["uri"] = uri;
                     readTask.Exception.Data["postValues"] = postValues;
-                    readTask.Exception.Data["headers"] = headers;
+                    readTask.Exception.Data["headers"] = request.Headers;
                     m_defaultErrorHandler?.Invoke(readTask.Exception);
                     throw readTask.Exception;;
                 }
@@ -178,7 +178,7 @@ public class MspClient
                 {
                     ex.Data["uri"] = uri;
                     ex.Data["postValues"] = postValues;
-                    ex.Data["headers"] = headers;
+                    ex.Data["headers"] = request.Headers;
                     m_defaultErrorHandler?.Invoke(ex);
                     throw;
                 }
