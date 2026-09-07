@@ -34,7 +34,7 @@ return;
 bool OnQuestionAcceptSetupEvent(GameSessionInfo gameSessionInfo)
 {
 	//The simulation requires layers only present in the 'OR ELSE' config file
-	return Version.Parse(gameSessionInfo.server_version).Major >= 6 && "NS_OR_ELSE" == gameSessionInfo.config_file_name;
+	return Version.Parse(gameSessionInfo.server_version).Major >= 6 && "NS_OR_ELSE" == gameSessionInfo.name;
 }
 
 // Once connected to the server, start setup. Get layermeta for all layers required for the simulation.
